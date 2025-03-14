@@ -1,0 +1,182 @@
+flag = true
+
+class Accumulator
+    def init(initialSum, initialLimit)
+        sum = initialSum
+        limit = initialLimit
+
+    def add(val)
+        sum = sum + val
+
+    def getSum()
+        return sum
+
+    def reachedLimit()
+        if sum >= limit
+            return true
+        else
+            return false
+
+def listTest()
+    // Create a list of numbers.
+    nums = [10, 20, 30, 40, 50]
+    print "Initial list: " + nums
+    print "First element: " + nums[0]       // Expected output: 10
+    print "Third element: " + nums[2]       // Expected output: 30
+
+    // Modify an element in the list by assignment.
+    nums[1] = 25
+    print "Modified list: " + nums
+    print "Modified second element: " + nums[1]  // Expected output: 25
+
+    // Create a nested list (matrix).
+    matrix = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9]
+    ]
+    print "Matrix: " + matrix
+    print "Element at matrix[1][2]: " + matrix[1][2]  // Expected output: 6
+
+    // Iterate over the list using a while loop.
+    i = 0
+    while i < 5
+        print "Element at index " + i + ": " + nums[i]
+        i = i + 1
+
+def accumulateTest()
+    acc = Accumulator(0, 50)
+    num = 5
+    while not acc.reachedLimit()
+        if flag and num < 10
+            acc.add(num)
+            print "Added " + num + ", sum: " + acc.getSum()
+        else
+            acc.add(num + 2)
+            print "Added " + (num + 2) + ", sum: " + acc.getSum()
+        num = num + 3
+
+def toggleTest()
+    flag = false
+    count = 3
+    while count > 0
+        if not flag or count == 1
+            print "Count: " + count + " (flag: " + flag + ")"
+        else
+            print "Skipped count: " + count
+        flag = not flag
+        count = count - 1
+
+def forLoopTest()
+    for i = 1,4
+        // Check if i is even using arithmetic operations.
+        if (i / 2) * 2 == i
+            print "Even: " + i
+        else
+            print "Odd: " + i
+
+def nestedTest()
+    for i = 1,3
+        j = 1
+        while j <= 2
+            print "Nested Loop -> i: " + i + ", j: " + j
+            j = j + 1
+
+// Call the functions to exercise all features.
+listTest()
+accumulateTest()
+toggleTest()
+forLoopTest()
+nestedTest()
+print "Final flag value: " + flag
+
+nums = [10, 20, 30, 40, 50]
+print nums[1:4]      // Should print a slice from index 1 up to (but not including) index 4.
+print nums[:3]       // Should print a slice from beginning up to index 3.
+print nums[2:]       // Should print a slice from index 2 to the end.
+print nums[0:5:2]    // Should print a slice from index 0 to 5 with a step of 2.
+
+nums = [1, 2, 3]
+nums.append(4)
+print(nums)      // Expected output: [1, 2, 3, 4]
+nums.remove(2)
+print(nums)      // Expected output: [1, 3, 4]
+print(nums.size()) // Expected output: 3.0
+last = nums.pop()
+print(last)      // Expected output: 4
+print(nums)      // Expected output: [1, 3]
+
+name = input("Enter your name: ")
+if name == "Alice"
+    print "Hello, Alice!"
+else if name == "Bob"
+    print "Hi Bob, welcome back!"
+else
+    print "Hello, stranger " + name
+
+grade = input("Enter your grade (A, B, C, D, or F): ")
+if grade == "A"
+    print "Excellent work!"
+else if grade == "B"
+    print "Good job!"
+else if grade == "C"
+    print "You passed, but there is room for improvement."
+else if grade == "D"
+    print "Barely passed."
+else
+    print "Failing. Please see your instructor."
+
+
+print "Grocery List App"
+grocery = []     // Initialize an empty grocery list.
+
+choice = input("Choose an action (1: add, 2: show, 3: remove, 4: exit): ")
+
+while choice != "4"
+    if choice == "1"
+        // Add an item.
+        item = input("Enter the item to add: ")
+        grocery.append(item)
+        print "Added item: " + item
+    else if choice == "2"
+        // Show the current list.
+		num = 0
+        print "Your grocery list: " 
+		for i in grocery
+			num = num + 1
+			print num + ". "+ i
+    else if choice == "3"
+        // Remove an item.
+        item = input("Enter the item to remove: ")
+        grocery.remove(item)
+        print "Removed item: " + item
+    else
+        print "Invalid choice. Please try again."
+    choice = input("Choose an action (1: add, 2: show, 3: remove, 4: exit): ")
+
+print "Goodbye!"
+
+
+
+Possible Inputs: 
+Arithmetic
+Print
+If else
+logical operators (=, >, <, etc. )
+class definition
+object instantiation
+method call
+function definition
+return statement
+function call
+and, or, not
+true, false
+for loop (i = 3,4)
+for loop (in list)
+while loop
+list definition
+list get index value
+list index assignment
+list splicing
+list append
+list pop
