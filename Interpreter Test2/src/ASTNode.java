@@ -266,4 +266,28 @@ class SliceNode extends ASTNode {
         return "SliceNode(" + target + ", " + start + ", " + end + ", " + step + ")";
     }
 }
+class ForEachNode extends ASTNode {
+    private Token loopVar;
+    private ASTNode listExpr;
+    private ASTNode body;
+
+    public ForEachNode(Token loopVar, ASTNode listExpr, ASTNode body) {
+        this.loopVar = loopVar;
+        this.listExpr = listExpr;
+        this.body = body;
+    }
+
+    public Token getLoopVar() {
+        return loopVar;
+    }
+
+    public ASTNode getListExpr() {
+        return listExpr;
+    }
+
+    public ASTNode getBody() {
+        return body;
+    }
+}
+
 

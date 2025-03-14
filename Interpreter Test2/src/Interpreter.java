@@ -11,8 +11,9 @@ public class Interpreter {
     // Constructor: initialize global environment and add built-in functions.
     public Interpreter() {
         globals = new Environment(null);
-        // Add built-in range function to the global environment.
+        // Add built-in functions to the global environment.
         globals.define("range", new RangeFunction());
+        globals.define("input", new InputFunction()); // InputFunction should implement Callable.
         environment = globals;
     }
 
@@ -37,6 +38,8 @@ public class Interpreter {
         if (node instanceof BlockNode) return evaluateBlock((BlockNode) node);
         if (node instanceof IfNode) return evaluateIf((IfNode) node);
         if (node instanceof WhileNode) return evaluateWhile((WhileNode) node);
+        // New case: for-each loop
+        if (node instanceof ForEachNode) return evaluateForEach((ForEachNode) node);
         if (node instanceof ForNode) return evaluateFor((ForNode) node);
         if (node instanceof FunctionDefinitionNode) return evaluateFunctionDefinition((FunctionDefinitionNode) node);
         if (node instanceof FunctionCallNode) return evaluateFunctionCall((FunctionCallNode) node);
@@ -49,6 +52,32 @@ public class Interpreter {
         if (node instanceof SliceNode) return evaluateSlice((SliceNode) node);
         throw new RuntimeException("Unknown AST node type: " + node.getClass().getName());
     }
+
+    // Helper method: returns a formatted string for a value.
+    // For numbers, if the value is mathematically an integer, it omits the trailing .0.
+    private String formatValue(Object value) {
+        if (value instanceof Double) {
+            double d = (Double) value;
+            if (d == (int) d) {
+                return Integer.toString((int) d);
+            } else {
+                return Double.toString(d);
+            }
+        } else if (value instanceof List) {
+            List<?> list = (List<?>) value;
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < list.size(); i++) {
+                sb.append(formatValue(list.get(i)));
+                if (i < list.size() - 1) {
+                    sb.append(", ");
+                }
+            }
+            sb.append("]");
+            return sb.toString();
+        }
+        return String.valueOf(value);
+    }
+
     private Object evaluateList(ListNode node) {
         List<Object> list = new ArrayList<>();
         for (ASTNode element : node.getElements()) {
@@ -56,6 +85,7 @@ public class Interpreter {
         }
         return list;
     }
+
     private Object evaluateIndex(IndexNode node) {
         Object base = evaluate(node.getBase());
         Object index = evaluate(node.getIndex());
@@ -75,6 +105,7 @@ public class Interpreter {
         }
         return list.get(idx);
     }
+
     private Object evaluateSlice(SliceNode node) {
         Object baseObj = evaluate(node.getTarget());
         if (!(baseObj instanceof List)) {
@@ -227,7 +258,7 @@ public class Interpreter {
         // String concatenation when one operand is a string.
         if (left instanceof String || right instanceof String) {
             if (op.equals("+")) {
-                return left.toString() + right.toString();
+                return formatValue(left) + formatValue(right);
             } else {
                 throw new RuntimeException("Unsupported operation for strings: " + op);
             }
@@ -287,9 +318,10 @@ public class Interpreter {
         return value;
     }
 
+    // Updated evaluatePrint uses formatValue to avoid printing .0 for whole numbers.
     private Object evaluatePrint(PrintNode node) {
         Object value = evaluate(node.expression);
-        System.out.println(value);
+        System.out.println(formatValue(value));
         return null;
     }
 
@@ -309,11 +341,26 @@ public class Interpreter {
         return result;
     }
 
+    // Helper method: evaluates a block using an existing environment (without creating a new one).
+    private Object evaluateBlockNoNewEnv(BlockNode node, Environment env) {
+        Object result = null;
+        Environment previous = environment;
+        environment = env;
+        for (ASTNode statement : node.statements) {
+            result = evaluate(statement);
+        }
+        environment = previous;
+        return result;
+    }
+
+    // Updated evaluateIf to handle else-if by recursively evaluating the else branch.
     private Object evaluateIf(IfNode node) {
         Object condition = evaluate(node.condition);
         if (isTruthy(condition)) {
             return evaluate(node.thenBranch);
         } else if (node.elseBranch != null) {
+            // The else branch might be an "else if" (represented as a nested IfNode)
+            // or a plain else. Either way, we simply evaluate it.
             return evaluate(node.elseBranch);
         }
         return null;
@@ -323,7 +370,6 @@ public class Interpreter {
     private Object evaluateWhile(WhileNode node) {
         Object result = null;
         while (isTruthy(evaluate(node.condition))) {
-            // If the body is a BlockNode, execute its statements in the current environment.
             if (node.body instanceof BlockNode) {
                 BlockNode block = (BlockNode) node.body;
                 for (ASTNode statement : block.statements) {
@@ -336,10 +382,7 @@ public class Interpreter {
         return result;
     }
 
-
-
-    // Evaluate a for loop.
-    // Here, we assume that the iterable expression evaluates to a List.
+    // Evaluate a for loop (numeric variant).
     private Object evaluateFor(ForNode node) {
         // Evaluate the start and end expressions.
         Object startObj = evaluate(node.start);
@@ -364,30 +407,64 @@ public class Interpreter {
         return result;
     }
 
+    // Evaluate a for-each loop.
+    // Here, the iterable expression should evaluate to a List.
+    private Object evaluateForEach(ForEachNode node) {
+        Object iterable = evaluate(node.getListExpr());
+        if (!(iterable instanceof List)) {
+            throw new RuntimeException("For-each loop expects a list.");
+        }
+        List<?> list = (List<?>) iterable;
+        Object result = null;
+        // Create a persistent loop environment that will persist across iterations.
+        Environment loopEnv = new Environment(environment);
+        // Define the loop variable in the loop environment.
+        loopEnv.define(node.getLoopVar().value, null);
+        for (Object element : list) {
+            loopEnv.assign(node.getLoopVar().value, element);
+            // Evaluate the loop body in the persistent loop environment.
+            if (node.getBody() instanceof BlockNode) {
+                result = evaluateBlockNoNewEnv((BlockNode) node.getBody(), loopEnv);
+            } else {
+                Environment previous = environment;
+                environment = loopEnv;
+                result = evaluate(node.getBody());
+                environment = previous;
+            }
+        }
+        return result;
+    }
+
     private Object evaluateFunctionDefinition(FunctionDefinitionNode node) {
         Function function = new Function(node, environment);
         environment.define(node.name.value, function);
         return function;
     }
 
+    // Updated evaluateFunctionCall to support both user-defined functions (Function)
+    // and built-in functions (which implement Callable).
     private Object evaluateFunctionCall(FunctionCallNode node) {
         Object callee = environment.get(node.name.value);
-        if (!(callee instanceof Function)) {
-            throw new RuntimeException("Attempted to call a non-function: " + node.name.value);
-        }
-        Function function = (Function) callee;
         List<Object> arguments = new ArrayList<>();
         for (ASTNode arg : node.arguments) {
             arguments.add(evaluate(arg));
         }
-        if (arguments.size() != function.declaration.parameters.size()) {
-            throw new RuntimeException("Function " + node.name.value + " expects " +
-                    function.declaration.parameters.size() + " arguments, but got " + arguments.size());
-        }
-        try {
-            return function.call(this, arguments);
-        } catch (Return r) {
-            return r.value;
+        if (callee instanceof Function) {
+            Function function = (Function) callee;
+            if (arguments.size() != function.declaration.parameters.size()) {
+                throw new RuntimeException("Function " + node.name.value + " expects " +
+                        function.declaration.parameters.size() + " arguments, but got " + arguments.size());
+            }
+            try {
+                return function.call(this, arguments);
+            } catch (Return r) {
+                return r.value;
+            }
+        } else if (callee instanceof Callable) {
+            Callable callable = (Callable) callee;
+            return callable.call(this, arguments);
+        } else {
+            throw new RuntimeException("Attempted to call a non-function: " + node.name.value);
         }
     }
 
@@ -416,7 +493,6 @@ public class Interpreter {
         for (ASTNode arg : node.arguments) {
             arguments.add(evaluate(arg));
         }
-        // If arguments are provided, require an initializer method.
         if (!arguments.isEmpty() && classValue.findMethod("init") == null) {
             throw new RuntimeException("Constructor arguments provided, but no initializer ('init') defined for class: " + classValue.name);
         }
@@ -425,6 +501,45 @@ public class Interpreter {
 
     private Object evaluateMethodCall(MethodCallNode node) {
         Object target = evaluate(node.target);
+        // Check if the target is a list and the method is a built-in list method.
+        if (target instanceof List) {
+            String methodName = node.methodName.value;
+            List<Object> list = (List<Object>) target;
+            if (methodName.equals("append")) {
+                if (node.arguments.size() != 1) {
+                    throw new RuntimeException("append() expects one argument.");
+                }
+                Object arg = evaluate(node.arguments.get(0));
+                list.add(arg);
+                return null;
+            } else if (methodName.equals("pop")) {
+                if (!node.arguments.isEmpty()) {
+                    throw new RuntimeException("pop() expects no arguments.");
+                }
+                if (list.isEmpty()) {
+                    throw new RuntimeException("pop() called on an empty list.");
+                }
+                return list.remove(list.size() - 1);
+            } else if (methodName.equals("remove")) {
+                // remove(item): removes the first occurrence of item.
+                if (node.arguments.size() != 1) {
+                    throw new RuntimeException("remove() expects one argument.");
+                }
+                Object arg = evaluate(node.arguments.get(0));
+                boolean removed = list.remove(arg); // removes first occurrence if found.
+                if (!removed) {
+                    throw new RuntimeException("remove() did not find the element to remove: " + arg);
+                }
+                return null;
+            } else if (methodName.equals("size")) {
+                // size() returns the number of elements in the list.
+                if (!node.arguments.isEmpty()) {
+                    throw new RuntimeException("size() expects no arguments.");
+                }
+                return (double) list.size(); // Assuming numbers are represented as Double.
+            }
+        }
+        // Otherwise, handle it as a normal instance method call.
         if (!(target instanceof Instance)) {
             throw new RuntimeException("Attempted to call method on non-instance.");
         }

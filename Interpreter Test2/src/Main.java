@@ -1,16 +1,32 @@
 import javax.swing.*;
 import javax.swing.plaf.basic.BasicSplitPaneDivider;
 import javax.swing.plaf.basic.BasicSplitPaneUI;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.ActionEvent;
-import java.io.ByteArrayOutputStream;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.List;
 
 public class Main extends JFrame {
-    private JTextArea inputArea;
-    private JTextArea outputArea;
-    private JButton runButton, clearButton;
+    private JTextArea inputArea;       // For entering code.
+    public static JTextArea consoleArea; // Console for both output and input.
+    private JButton runButton, clearButton, stopButton;
+
+    // For interactive input handling.
+    public static final Object inputLock = new Object();
+    public static int inputStart = 0; // Position in the console document where user input begins.
+
+    // Reference to the currently running interpreter thread.
+    private Thread currentThread = null;
 
     public Main() {
         setTitle("Code Interpreter - Night Mode");
@@ -25,19 +41,20 @@ public class Main extends JFrame {
         contentPane.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
         setContentPane(contentPane);
 
-        // Button Panel at top
+        // Button Panel at the top.
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
         buttonPanel.setBackground(backgroundDark);
         runButton = new JButton("Run");
         clearButton = new JButton("Clear");
-
-        // Style the buttons with a fixed size and white fill
+        stopButton = new JButton("Stop");
         styleButton(runButton);
         styleButton(clearButton);
+        styleButton(stopButton);
         buttonPanel.add(runButton);
         buttonPanel.add(clearButton);
+        buttonPanel.add(stopButton);
 
-        // Input Panel
+        // Input Panel for code entry.
         JPanel inputPanel = new JPanel(new BorderLayout());
         inputPanel.setBackground(backgroundDark);
         inputPanel.setBorder(BorderFactory.createTitledBorder(
@@ -56,32 +73,92 @@ public class Main extends JFrame {
         JScrollPane inputScroll = new JScrollPane(inputArea);
         inputPanel.add(inputScroll, BorderLayout.CENTER);
 
-        // Output Panel
-        JPanel outputPanel = new JPanel(new BorderLayout());
-        outputPanel.setBackground(backgroundDark);
-        outputPanel.setBorder(BorderFactory.createTitledBorder(
+        // Console Panel for output and interactive input.
+        JPanel consolePanel = new JPanel(new BorderLayout());
+        consolePanel.setBackground(backgroundDark);
+        consolePanel.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(foregroundLight),
-                "Output",
+                "Console",
                 0, 0, null, foregroundLight));
-        outputArea = new JTextArea(15, 50);
-        outputArea.setFont(new Font("Consolas", Font.PLAIN, 14));
-        outputArea.setMargin(new Insets(10, 10, 10, 10));
-        outputArea.setEditable(false);
-        outputArea.setLineWrap(true);
-        outputArea.setWrapStyleWord(true);
-        outputArea.setBackground(backgroundDark);
-        outputArea.setForeground(foregroundLight);
-        outputArea.setCaretColor(Color.WHITE);
-        JScrollPane outputScroll = new JScrollPane(outputArea);
-        outputPanel.add(outputScroll, BorderLayout.CENTER);
+        consoleArea = new JTextArea(15, 50);
+        consoleArea.setFont(new Font("Consolas", Font.PLAIN, 14));
+        consoleArea.setMargin(new Insets(10, 10, 10, 10));
+        consoleArea.setLineWrap(true);
+        consoleArea.setWrapStyleWord(true);
+        consoleArea.setBackground(backgroundDark);
+        consoleArea.setForeground(foregroundLight);
+        consoleArea.setCaretColor(Color.WHITE);
+        // Make the console area uneditable by default.
+        consoleArea.setEditable(false);
+        // Install a DocumentFilter to restrict editing to positions after inputStart.
+        ((AbstractDocument) consoleArea.getDocument()).setDocumentFilter(new DocumentFilter() {
+            @Override
+            public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr)
+                    throws BadLocationException {
+                if (offset >= inputStart) {
+                    super.insertString(fb, offset, string, attr);
+                }
+            }
+            @Override
+            public void remove(FilterBypass fb, int offset, int length)
+                    throws BadLocationException {
+                if (offset >= inputStart) {
+                    super.remove(fb, offset, length);
+                }
+            }
+            @Override
+            public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs)
+                    throws BadLocationException {
+                if (offset >= inputStart) {
+                    super.replace(fb, offset, length, text, attrs);
+                }
+            }
+        });
+        JScrollPane consoleScroll = new JScrollPane(consoleArea);
+        consolePanel.add(consoleScroll, BorderLayout.CENTER);
 
-        // Create a JSplitPane with a thicker grab area but visually a thin divider.
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, inputPanel, outputPanel);
+        // Add a CaretListener to force the caret to stay at or after inputStart.
+        consoleArea.addCaretListener(e -> {
+            if (consoleArea.getCaretPosition() < inputStart) {
+                SwingUtilities.invokeLater(() -> consoleArea.setCaretPosition(inputStart));
+            }
+        });
+
+        // Add a MouseListener so that clicking before inputStart moves the caret.
+        consoleArea.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (consoleArea.getCaretPosition() < inputStart) {
+                    consoleArea.setCaretPosition(inputStart);
+                }
+            }
+        });
+
+        // Add a KeyListener to intercept Enter key presses.
+        consoleArea.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    // Only handle Enter if the caret is in the editable (input prompt) region.
+                    if (consoleArea.getCaretPosition() >= inputStart) {
+                        e.consume(); // Prevent insertion of newline.
+                        SwingUtilities.invokeLater(() -> {
+                            consoleArea.append("\n");
+                            consoleArea.setCaretPosition(consoleArea.getDocument().getLength());
+                        });
+                        synchronized (inputLock) {
+                            inputLock.notify();
+                        }
+                    }
+                }
+            }
+        });
+
+        // Create a JSplitPane for code input and console.
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, inputPanel, consolePanel);
         splitPane.setContinuousLayout(true);
         splitPane.setDividerLocation(250);
-        splitPane.setDividerSize(20); // Thicker grab area
-
-        // Customize divider appearance: draw a 2-pixel line in the center.
+        splitPane.setDividerSize(20);
         splitPane.setUI(new BasicSplitPaneUI() {
             @Override
             public BasicSplitPaneDivider createDefaultDivider() {
@@ -105,77 +182,103 @@ public class Main extends JFrame {
         contentPane.add(buttonPanel, BorderLayout.NORTH);
         contentPane.add(splitPane, BorderLayout.CENTER);
 
-        // Button Actions
+        // Button Actions.
         runButton.addActionListener((ActionEvent e) -> runCode());
         clearButton.addActionListener((ActionEvent e) -> {
             inputArea.setText("");
-            outputArea.setText("");
+            consoleArea.setText("");
         });
+        stopButton.addActionListener((ActionEvent e) -> stopExecution());
 
         setVisible(true);
     }
 
+    // Style a button.
     private void styleButton(JButton button) {
-        // Fill the button with white and set text to black.
         button.setBackground(Color.WHITE);
         button.setForeground(Color.BLACK);
-        // Use a larger, bold font.
         button.setFont(new Font("Consolas", Font.BOLD, 16));
         button.setFocusPainted(false);
         button.setBorder(BorderFactory.createLineBorder(Color.WHITE, 1));
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        // Set a fixed size to ensure both buttons are uniform and bigger.
         button.setPreferredSize(new Dimension(80, 40));
     }
 
-    private void runCode() {
-        String input = inputArea.getText().trim();
-        if (input.isEmpty()) {
-            outputArea.setText("Error: No code entered.");
-            return;
-        }
-        try {
-            ByteArrayOutputStream outputCapture = new ByteArrayOutputStream();
-            PrintStream originalOut = System.out;
-            System.setOut(new PrintStream(outputCapture));
-
-            // Tokenization
-            Lexer lexer = new Lexer(input);
-            List<Token> tokens = lexer.tokenize();
-            StringBuilder output = new StringBuilder("Tokens:\n");
-            for (Token token : tokens) {
-                output.append(token).append("\n");
-            }
-
-            // Parsing
-            output.append("\nParsing process:\n");
-            Parser parser = new Parser(tokens);
-            ASTNode ast = parser.parse();
-            output.append("\nFinal Parsed AST:\n");
-            output.append(printAST(ast, 0));
-
-            // Interpretation
-            output.append("\nInterpreting...\n");
-            Interpreter interpreter = new Interpreter();
-            Object result = interpreter.evaluate(ast);
-            System.out.flush();
-            System.setOut(originalOut);
-
-            if (result != null) {
-                output.append("\nResult:\n").append(result);
-            } else {
-                output.append("\nResult: No Output");
-            }
-            String capturedOutput = outputCapture.toString();
-            if (!capturedOutput.isEmpty()) {
-                output.append("\n").append(capturedOutput);
-            }
-            outputArea.setText(output.toString());
-        } catch (Exception ex) {
-            outputArea.setText("Error: " + ex.getMessage());
-        }
+    // Append text to the console area.
+    public static void appendToConsole(String text) {
+        SwingUtilities.invokeLater(() -> {
+            consoleArea.append(text);
+            consoleArea.setCaretPosition(consoleArea.getDocument().getLength());
+        });
     }
 
+    // Run the code in a background thread.
+    private void runCode() {
+        String code = inputArea.getText().trim();
+        if (code.isEmpty()) {
+            consoleArea.setText("Error: No code entered.\n");
+            return;
+        }
+        // Synchronously clear the console and reset inputStart.
+        consoleArea.setText("");
+        inputStart = 0;
+
+        currentThread = new Thread(() -> {
+            try {
+                // Create a PrintStream that writes directly to the console.
+                PrintStream ps = new PrintStream(new OutputStream() {
+                    @Override
+                    public void write(int b) throws IOException {
+                        SwingUtilities.invokeLater(() -> {
+                            consoleArea.append(String.valueOf((char) b));
+                            consoleArea.setCaretPosition(consoleArea.getDocument().getLength());
+                        });
+                    }
+                });
+                PrintStream originalOut = System.out;
+                System.setOut(ps);
+
+                // Tokenization.
+                Lexer lexer = new Lexer(code);
+                List<Token> tokens = lexer.tokenize();
+                System.out.println("Tokens:");
+                for (Token token : tokens) {
+                    System.out.println(token);
+                }
+
+                // Parsing.
+                System.out.println("\nParsing process:");
+                Parser parser = new Parser(tokens);
+                ASTNode ast = parser.parse();
+                System.out.println("\nFinal Parsed AST:");
+                System.out.println(printAST(ast, 0));
+
+                // Interpretation.
+                System.out.println("\nInterpreting...");
+                Interpreter interpreter = new Interpreter();
+                interpreter.evaluate(ast);
+
+                System.out.flush();
+                System.setOut(originalOut);
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> consoleArea.setText("Error: " + ex.getMessage()));
+            }
+        });
+        currentThread.start();
+    }
+
+    // Stop button action: interrupt running thread and clear output.
+    private void stopExecution() {
+        if (currentThread != null && currentThread.isAlive()) {
+            currentThread.interrupt();
+            currentThread = null;
+        }
+        // Clear only the console and reset inputStart; do not clear the input area.
+        consoleArea.setText("");
+        inputStart = 0;
+    }
+
+    // Helper method to print the AST.
     private String printAST(ASTNode node, int level) {
         if (node == null) return "";
         StringBuilder sb = new StringBuilder();

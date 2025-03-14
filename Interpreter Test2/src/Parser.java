@@ -37,6 +37,17 @@ public class Parser {
         this.curr = tokens.get(pos);
         // Initialize global scope.
         enterScope();
+        // Define built-in functions in the global scope.
+        defineBuiltInFunctions();
+    }
+
+    // Add built-in functions (like input and range) to the global symbol table.
+    private void defineBuiltInFunctions() {
+        // "input" is defined as a built-in function expecting 1 parameter.
+        scopes.get(scopes.size() - 1).put("input", new Symbol("input", SymbolType.FUNCTION, 1));
+        // "range" is defined as a built-in function expecting 2 parameters.
+        scopes.get(scopes.size() - 1).put("range", new Symbol("range", SymbolType.FUNCTION, 2));
+        // Add more built-in functions as needed.
     }
 
     // Push a new scope.
@@ -161,36 +172,28 @@ public class Parser {
         } else if (curr.type == TokenType.RETURN) {
             return returnStatement();
         } else {
-            // Parse an expression as a candidate for the assignment target.
+            // Parse an expression as a candidate for assignment.
             ASTNode expr = expression();
-            // If the next token is '=', then this is an assignment.
             if (curr.type == TokenType.EQUALS) {
-                // Ensure the left-hand side is assignable (Identifier, Index, or Field Access).
-                if (!(expr instanceof IdentifierNode ||
-                        expr instanceof IndexNode ||
-                        expr instanceof FieldAccessNode)) {
+                // Left-hand side must be assignable.
+                if (!(expr instanceof IdentifierNode || expr instanceof IndexNode || expr instanceof FieldAccessNode)) {
                     throw new RuntimeException("Invalid assignment target.");
                 }
-                advance(); // Consume the '=' token.
+                advance(); // consume '='
                 ASTNode right = expression();
-                // If the target is a simple identifier, use the existing AssignmentNode.
                 if (expr instanceof IdentifierNode) {
                     IdentifierNode idNode = (IdentifierNode) expr;
                     if (lookup(idNode.identifier.value) == null) {
                         defineVariable(idNode.identifier.value);
                     }
                     return new AssignmentNode(right, idNode.identifier);
-                }
-                // Otherwise, if it's an index or field access, use the new IndexAssignmentNode.
-                else {
+                } else {
                     return new IndexAssignmentNode(expr, right);
                 }
             }
-            // No assignment detected; simply return the parsed expression.
             return expr;
         }
     }
-
 
     // Parse a print statement.
     private ASTNode printStatement() {
@@ -199,25 +202,24 @@ public class Parser {
         return new PrintNode(expr);
     }
 
-    // Parse a List
+    // Parse a List.
     private ASTNode parseList() {
         expect(TokenType.LBRACKET, "Expected '[' to start a list");
         List<ASTNode> elements = new ArrayList<>();
-
-        if (curr.type != TokenType.RBRACKET) {  // Handle empty lists `[]`
+        if (curr.type != TokenType.RBRACKET) { // Handle empty list []
             elements.add(expression());
             while (match(TokenType.COMMA)) {
                 elements.add(expression());
             }
         }
-
         expect(TokenType.RBRACKET, "Expected ']' to close the list");
         return new ListNode(elements);
     }
 
     // Parse an if-statement.
     private ASTNode ifStatement() {
-        advance(); // consume IF token
+        // Expect and consume IF.
+        expect(TokenType.IF, "Expected 'if'"); // Now we require an IF token here.
         ASTNode condition = expression();
         expect(TokenType.NEWLINE, "Expected newline after if condition");
         expect(TokenType.INDENT, "Expected indent after if condition");
@@ -231,10 +233,37 @@ public class Parser {
         expect(TokenType.DEDENT, "Expected dedent after if block");
         exitScope();
         ASTNode thenBlock = new BlockNode(thenStatements);
-
         ASTNode elseBlock = null;
-        if (curr.type == TokenType.ELSE) {
-            advance(); // consume ELSE
+        if (curr.type == TokenType.ELSEIF || curr.type == TokenType.ELSE) {
+            elseBlock = parseElseChain();
+        }
+        return new IfNode(condition, thenBlock, elseBlock);
+    }
+
+    // Helper method to parse the "else if"/"else" chain.
+    private ASTNode parseElseChain() {
+        if (curr.type == TokenType.ELSEIF) {
+            advance(); // consume ELSEIF token (which represents "else if")
+            ASTNode condition = expression();
+            expect(TokenType.NEWLINE, "Expected newline after else if condition");
+            expect(TokenType.INDENT, "Expected indent after else if condition");
+            enterScope();
+            List<ASTNode> elseifStatements = new ArrayList<>();
+            skipNewlines();
+            while (curr.type != TokenType.DEDENT && curr.type != TokenType.EOF) {
+                elseifStatements.add(statement());
+                skipNewlines();
+            }
+            expect(TokenType.DEDENT, "Expected dedent after else if block");
+            exitScope();
+            ASTNode elseifBlock = new BlockNode(elseifStatements);
+            ASTNode subsequentElse = null;
+            if (curr.type == TokenType.ELSEIF || curr.type == TokenType.ELSE) {
+                subsequentElse = parseElseChain();
+            }
+            return new IfNode(condition, elseifBlock, subsequentElse);
+        } else if (curr.type == TokenType.ELSE) {
+            advance(); // consume ELSE token
             expect(TokenType.NEWLINE, "Expected newline after else");
             expect(TokenType.INDENT, "Expected indent after else");
             enterScope();
@@ -246,10 +275,10 @@ public class Parser {
             }
             expect(TokenType.DEDENT, "Expected dedent after else block");
             exitScope();
-            elseBlock = new BlockNode(elseStatements);
+            return new BlockNode(elseStatements);
+        } else {
+            return null;
         }
-
-        return new IfNode(condition, thenBlock, elseBlock);
     }
 
     // Parse a while-statement.
@@ -274,44 +303,45 @@ public class Parser {
     // Grammar: forStmt -> FOR IDENTIFIER IN expression NEWLINE INDENT statement* DEDENT
     private ASTNode forStatement() {
         advance(); // consume FOR token
-
-        // Parse the loop variable.
         expect(TokenType.IDENTIFIER, "Expected loop variable in for statement");
         Token loopVar = tokens.get(pos - 1);
-
-        // Expect '=' instead of 'in'
-        expect(TokenType.EQUALS, "Expected '=' after loop variable in for statement");
-
-        // Parse the start expression.
-        ASTNode start = expression();
-
-        // Expect a comma between the start and end expressions.
-        expect(TokenType.COMMA, "Expected ',' after start value in for statement");
-
-        // Parse the end expression.
-        ASTNode end = expression();
-
-        // Finish the header with a newline and an indent.
-        expect(TokenType.NEWLINE, "Expected newline after for header");
-        expect(TokenType.INDENT, "Expected indent after for header");
-
-        // Enter a new scope for the loop body and define the loop variable.
-        enterScope();
-        defineVariable(loopVar.value);
-
-        List<ASTNode> bodyStatements = new ArrayList<>();
-        skipNewlines();
-        while (curr.type != TokenType.DEDENT && curr.type != TokenType.EOF) {
-            bodyStatements.add(statement());
+        if (match(TokenType.IN)) {
+            // For-each loop: for i in x
+            ASTNode listExpr = expression();
+            expect(TokenType.NEWLINE, "Expected newline after for header");
+            expect(TokenType.INDENT, "Expected indent after for header");
+            enterScope();
+            defineVariable(loopVar.value);
+            List<ASTNode> bodyStatements = new ArrayList<>();
             skipNewlines();
+            while (curr.type != TokenType.DEDENT && curr.type != TokenType.EOF) {
+                bodyStatements.add(statement());
+                skipNewlines();
+            }
+            expect(TokenType.DEDENT, "Expected dedent after for block");
+            exitScope();
+            return new ForEachNode(loopVar, listExpr, new BlockNode(bodyStatements));
+        } else {
+            // Numeric for loop: for i = start, end
+            expect(TokenType.EQUALS, "Expected '=' after loop variable in for statement");
+            ASTNode start = expression();
+            expect(TokenType.COMMA, "Expected ',' after start value in for statement");
+            ASTNode end = expression();
+            expect(TokenType.NEWLINE, "Expected newline after for header");
+            expect(TokenType.INDENT, "Expected indent after for header");
+            enterScope();
+            defineVariable(loopVar.value);
+            List<ASTNode> bodyStatements = new ArrayList<>();
+            skipNewlines();
+            while (curr.type != TokenType.DEDENT && curr.type != TokenType.EOF) {
+                bodyStatements.add(statement());
+                skipNewlines();
+            }
+            expect(TokenType.DEDENT, "Expected dedent after for block");
+            exitScope();
+            return new ForNode(loopVar, start, end, new BlockNode(bodyStatements));
         }
-        expect(TokenType.DEDENT, "Expected dedent after for block");
-        exitScope();
-
-        // Create and return a numeric for loop node.
-        return new ForNode(loopVar, start, end, new BlockNode(bodyStatements));
     }
-
 
     // Parse a function definition.
     private ASTNode functionDefinition() {
@@ -330,7 +360,6 @@ public class Parser {
             }
         }
         expect(TokenType.RPAREN, "Expected ')' after parameters");
-
         defineFunction(functionName.value, parameters.size());
         expect(TokenType.NEWLINE, "Expected newline after function header");
         expect(TokenType.INDENT, "Expected indent in function body");
@@ -355,7 +384,6 @@ public class Parser {
         advance(); // consume CLASS token
         expect(TokenType.IDENTIFIER, "Expected class name");
         Token className = tokens.get(pos - 1);
-        // Check for duplicate class definitions.
         if (scopes.get(scopes.size() - 1).containsKey(className.value)) {
             throw new RuntimeException("Semantic error: Class '" + className.value + "' is already defined in this scope.");
         }
@@ -379,7 +407,6 @@ public class Parser {
         if (curr.type == TokenType.DEF) {
             return functionDefinition();
         } else if (curr.type == TokenType.IDENTIFIER) {
-            // Look ahead to decide.
             Token temp = curr;
             int tempPos = pos;
             advance();
@@ -612,9 +639,7 @@ public class Parser {
                 }
             } else if (curr.type == TokenType.LBRACKET) {
                 advance(); // consume '['
-                // Check if this is a slice expression.
                 if (curr.type == TokenType.COLON) {
-                    // No start expression.
                     advance(); // consume ':'
                     ASTNode end = null;
                     if (curr.type != TokenType.RBRACKET) {
@@ -630,10 +655,8 @@ public class Parser {
                     expect(TokenType.RBRACKET, "Expected ']' after slice expression");
                     node = new SliceNode(node, null, end, step);
                 } else {
-                    // There is a start expression.
                     ASTNode start = expression();
                     if (curr.type == TokenType.COLON) {
-                        // It's a slice.
                         advance(); // consume ':'
                         ASTNode end = null;
                         if (curr.type != TokenType.RBRACKET) {
@@ -649,7 +672,6 @@ public class Parser {
                         expect(TokenType.RBRACKET, "Expected ']' after slice expression");
                         node = new SliceNode(node, start, end, step);
                     } else {
-                        // No colon found; it's a simple index.
                         expect(TokenType.RBRACKET, "Expected ']' after index expression");
                         node = new IndexNode(node, start);
                     }

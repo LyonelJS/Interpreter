@@ -16,6 +16,7 @@ public class Lexer {
         KEYWORDS.put("print", TokenType.PRINT);
         KEYWORDS.put("if", TokenType.IF);
         KEYWORDS.put("else", TokenType.ELSE);
+        // We'll handle "else if" specially, so no need to put it here.
         KEYWORDS.put("function", TokenType.DEF);
         KEYWORDS.put("class", TokenType.CLASS);
         KEYWORDS.put("and", TokenType.AND);
@@ -85,6 +86,36 @@ public class Lexer {
             advance();
         }
         String word = result.toString();
+        // Check for "else if" (combine "else" followed by "if" on the same line)
+        if (word.equals("else")) {
+            // Save current state for lookahead.
+            int savedPos = pos;
+            char savedCurr = curr;
+            // Skip spaces/tabs but stop if a newline is encountered.
+            while ((curr == ' ' || curr == '\t') && curr != '\n' && curr != '\0') {
+                advance();
+            }
+            // Collect the next word (if any) without consuming it permanently.
+            StringBuilder nextWord = new StringBuilder();
+            int tempPos = pos;
+            char tempCurr = tempPos < input.length() ? input.charAt(tempPos) : '\0';
+            while (Character.isLetterOrDigit(tempCurr)) {
+                nextWord.append(tempCurr);
+                tempPos++;
+                tempCurr = tempPos < input.length() ? input.charAt(tempPos) : '\0';
+            }
+            if (nextWord.toString().equals("if")) {
+                // Consume the "if" by advancing the lexer.
+                for (int i = 0; i < nextWord.length(); i++) {
+                    advance();
+                }
+                return new Token(TokenType.ELSEIF, "else if");
+            } else {
+                // Not "else if": revert to saved state.
+                pos = savedPos;
+                curr = savedCurr;
+            }
+        }
         TokenType type = KEYWORDS.getOrDefault(word, TokenType.IDENTIFIER);
         return new Token(type, word);
     }
@@ -168,7 +199,9 @@ public class Lexer {
                 listNesting--; // Exiting a list
                 advance();
                 return new Token(TokenType.RBRACKET, "]");
-            case ':': advance(); return new Token(TokenType.COLON, ":");
+            case ':':
+                advance();
+                return new Token(TokenType.COLON, ":");
             default:
                 char unknown = curr;
                 advance();
