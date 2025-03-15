@@ -1,7 +1,5 @@
 import java.util.List;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 public class Interpreter {
 
@@ -13,7 +11,9 @@ public class Interpreter {
         globals = new Environment(null);
         // Add built-in functions to the global environment.
         globals.define("range", new RangeFunction());
-        globals.define("input", new InputFunction()); // InputFunction should implement Callable.
+        globals.define("input", new InputFunction());
+        globals.define("int", new IntFunction());
+        globals.define("float", new FloatFunction());
         environment = globals;
     }
 
@@ -33,12 +33,13 @@ public class Interpreter {
         if (node instanceof BinaryOpNode) return evaluateBinaryOp((BinaryOpNode) node);
         if (node instanceof UnaryOpNode) return evaluateUnaryOp((UnaryOpNode) node);
         if (node instanceof AssignmentNode) return evaluateAssignment((AssignmentNode) node);
+        if (node instanceof IndexAssignmentNode) return evaluateIndexAssignment((IndexAssignmentNode) node);
+        if (node instanceof FieldAssignmentNode) return evaluateFieldAssignment((FieldAssignmentNode) node);
         if (node instanceof PrintNode) return evaluatePrint((PrintNode) node);
         if (node instanceof ReturnNode) return evaluateReturn((ReturnNode) node);
         if (node instanceof BlockNode) return evaluateBlock((BlockNode) node);
         if (node instanceof IfNode) return evaluateIf((IfNode) node);
         if (node instanceof WhileNode) return evaluateWhile((WhileNode) node);
-        // New case: for-each loop
         if (node instanceof ForEachNode) return evaluateForEach((ForEachNode) node);
         if (node instanceof ForNode) return evaluateFor((ForNode) node);
         if (node instanceof FunctionDefinitionNode) return evaluateFunctionDefinition((FunctionDefinitionNode) node);
@@ -48,7 +49,6 @@ public class Interpreter {
         if (node instanceof MethodCallNode) return evaluateMethodCall((MethodCallNode) node);
         if (node instanceof ListNode) return evaluateList((ListNode) node);
         if (node instanceof IndexNode) return evaluateIndex((IndexNode) node);
-        if (node instanceof IndexAssignmentNode) return evaluateIndexAssignment((IndexAssignmentNode) node);
         if (node instanceof SliceNode) return evaluateSlice((SliceNode) node);
         throw new RuntimeException("Unknown AST node type: " + node.getClass().getName());
     }
@@ -95,10 +95,10 @@ public class Interpreter {
         }
         List<?> list = (List<?>) base;
 
-        if (!(index instanceof Double)) { // Assuming numbers are represented as Double
+        if (!(index instanceof Number)) { // Assuming numbers are represented as Double
             throw new RuntimeException("List index must be a number.");
         }
-        int idx = ((Double) index).intValue();
+        int idx = ((Number) index).intValue();
 
         if (idx < 0 || idx >= list.size()) {
             throw new RuntimeException("List index out of bounds: " + idx);
@@ -118,30 +118,30 @@ public class Interpreter {
         int start = 0;
         if (node.getStart() != null) {
             Object startVal = evaluate(node.getStart());
-            if (!(startVal instanceof Double)) {
+            if (!(startVal instanceof Number)) {
                 throw new RuntimeException("Slice start must be a number.");
             }
-            start = ((Double) startVal).intValue();
+            start = ((Number) startVal).intValue();
         }
 
         // Evaluate end; if missing, default to size.
         int end = size;
         if (node.getEnd() != null) {
             Object endVal = evaluate(node.getEnd());
-            if (!(endVal instanceof Double)) {
+            if (!(endVal instanceof Number)) {
                 throw new RuntimeException("Slice end must be a number.");
             }
-            end = ((Double) endVal).intValue();
+            end = ((Number) endVal).intValue();
         }
 
         // Evaluate step; if missing, default to 1.
         int step = 1;
         if (node.getStep() != null) {
             Object stepVal = evaluate(node.getStep());
-            if (!(stepVal instanceof Double)) {
+            if (!(stepVal instanceof Number)) {
                 throw new RuntimeException("Slice step must be a number.");
             }
-            step = ((Double) stepVal).intValue();
+            step = ((Number) stepVal).intValue();
             if (step == 0) {
                 throw new RuntimeException("Slice step cannot be zero.");
             }
@@ -168,39 +168,65 @@ public class Interpreter {
         return result;
     }
 
+    // Modified evaluateIndexAssignment to support both list index assignments and field assignments.
     private Object evaluateIndexAssignment(IndexAssignmentNode node) {
-        // The target should be an IndexNode.
-        if (!(node.getTarget() instanceof IndexNode)) {
-            throw new RuntimeException("Invalid index assignment target.");
+        ASTNode targetExpr = node.getTarget();
+        if (targetExpr instanceof IndexNode) {
+            IndexNode indexNode = (IndexNode) targetExpr;
+            // Evaluate the base expression (should yield a List).
+            Object base = evaluate(indexNode.getBase());
+            if (!(base instanceof List)) {
+                throw new RuntimeException("Index assignment target must be a list.");
+            }
+            List<Object> list = (List<Object>) base;
+            // Evaluate the index expression.
+            Object indexVal = evaluate(indexNode.getIndex());
+            if (!(indexVal instanceof Number)) { // Accept any Number type.
+                throw new RuntimeException("List index must be a number.");
+            }
+            int idx = ((Number) indexVal).intValue();
+            if (idx < 0 || idx >= list.size()) {
+                throw new RuntimeException("List index out of bounds: " + idx);
+            }
+            // Evaluate the right-hand side (value to assign).
+            Object value = evaluate(node.getValue());
+            // Perform the assignment.
+            list.set(idx, value);
+            return value;
+        } else if (targetExpr instanceof FieldAccessNode) {
+            // Compound assignment on a field access.
+            FieldAccessNode fieldAccess = (FieldAccessNode) targetExpr;
+            Object instanceObj = evaluate(fieldAccess.target);
+            if (!(instanceObj instanceof Instance)) {
+                throw new RuntimeException("Field assignment target is not an instance.");
+            }
+            Instance instance = (Instance) instanceObj;
+            Object value = evaluate(node.getValue());
+            instance.set(fieldAccess.fieldName.value, value);
+            return value;
+        } else {
+            throw new RuntimeException("Invalid assignment target for compound assignment.");
         }
-        IndexNode indexNode = (IndexNode) node.getTarget();
+    }
 
-        // Evaluate the base expression (should yield a List).
-        Object base = evaluate(indexNode.getBase());
-        if (!(base instanceof List)) {
-            throw new RuntimeException("Index assignment target must be a list.");
+    // Added evaluateFieldAssignment to handle explicit field assignment AST nodes.
+    private Object evaluateFieldAssignment(FieldAssignmentNode node) {
+        Object targetObj = evaluate(node.target);
+        if (!(targetObj instanceof Instance)) {
+            throw new RuntimeException("Field assignment target is not an instance.");
         }
-        List<Object> list = (List<Object>) base;
-
-        // Evaluate the index expression.
-        Object indexVal = evaluate(indexNode.getIndex());
-        if (!(indexVal instanceof Double)) { // Assuming numbers are represented as Double.
-            throw new RuntimeException("List index must be a number.");
-        }
-        int idx = ((Double) indexVal).intValue();
-        if (idx < 0 || idx >= list.size()) {
-            throw new RuntimeException("List index out of bounds: " + idx);
-        }
-
-        // Evaluate the right-hand side (value to assign).
-        Object value = evaluate(node.getValue());
-        // Perform the assignment.
-        list.set(idx, value);
+        Instance instance = (Instance) targetObj;
+        Object value = evaluate(node.value);
+        instance.set(node.fieldName.value, value);
         return value;
     }
 
     private Object evaluateNumber(NumberNode node) {
-        return Double.parseDouble(node.token.value);
+        double value = Double.parseDouble(node.token.value);
+        if (value == (int) value) { // No fractional part
+            return (int) value;
+        }
+        return value;
     }
 
     private Object evaluateString(StringNode node) {
@@ -230,9 +256,13 @@ public class Interpreter {
 
     private boolean isEqual(Object a, Object b) {
         if (a == null && b == null) return true;
-        if (a == null) return false;
+        if (a == null || b == null) return false;
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).doubleValue() == ((Number) b).doubleValue();
+        }
         return a.equals(b);
     }
+
 
     private Object evaluateBinaryOp(BinaryOpNode node) {
         Object left = evaluate(node.left);
@@ -245,6 +275,15 @@ public class Interpreter {
         }
         if (op.equals("!=")) {
             return !isEqual(left, right);
+        }
+
+        // Membership test: if x in list.
+        if (op.equals("in")) {
+            if (!(right instanceof List)) {
+                throw new RuntimeException("Operator 'in' expects a list as the right operand.");
+            }
+            List<?> list = (List<?>) right;
+            return list.contains(left);
         }
 
         // Logical operators: and, or.
@@ -265,14 +304,15 @@ public class Interpreter {
         }
 
         // Numeric operations.
-        if (left instanceof Double && right instanceof Double) {
-            double l = (Double) left;
-            double r = (Double) right;
+        if (left instanceof Number && right instanceof Number) {
+            double l = ((Number) left).doubleValue();
+            double r = ((Number) right).doubleValue();
             switch (op) {
                 case "+": return l + r;
                 case "-": return l - r;
                 case "*": return l * r;
                 case "/": return l / r;
+                case "%": return l % r;
                 case ">": return l > r;
                 case ">=": return l >= r;
                 case "<": return l < r;
@@ -281,6 +321,7 @@ public class Interpreter {
                     throw new RuntimeException("Unknown binary operator: " + op);
             }
         }
+
         throw new RuntimeException("Unsupported operands for operator '" + op + "': " +
                 left.getClass().getSimpleName() + " and " + right.getClass().getSimpleName());
     }
@@ -387,16 +428,16 @@ public class Interpreter {
         // Evaluate the start and end expressions.
         Object startObj = evaluate(node.start);
         Object endObj = evaluate(node.end);
-        if (!(startObj instanceof Double) || !(endObj instanceof Double)) {
+        if (!(startObj instanceof Number) || !(endObj instanceof Number)) {
             throw new RuntimeException("For loop: start and end values must be numbers.");
         }
-        double startVal = (Double) startObj;
-        double endVal = (Double) endObj;
+        Number startVal = (Number) startObj;
+        Number endVal = (Number) endObj;
         Object result = null;
 
         // Ensure the loop variable is defined in the current environment.
         if (!environment.containsLocally(node.loopVar.value)) {
-            environment.define(node.loopVar.value, (double) startVal);
+            environment.define(node.loopVar.value, startVal);
         }
 
         // Iterate from the start value to the end value (inclusive).

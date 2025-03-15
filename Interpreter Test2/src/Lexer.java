@@ -147,15 +147,31 @@ public class Lexer {
         switch (curr) {
             case '+':
                 advance();
+                if (curr == '=') {
+                    advance();
+                    return new Token(TokenType.PLUS_EQUAL, "+=");
+                }
                 return new Token(TokenType.PLUS, "+");
             case '-':
                 advance();
+                if (curr == '=') {
+                    advance();
+                    return new Token(TokenType.MINUS_EQUAL, "-=");
+                }
                 return new Token(TokenType.MINUS, "-");
             case '*':
                 advance();
+                if (curr == '=') {
+                    advance();
+                    return new Token(TokenType.MULTIPLY_EQUAL, "*=");
+                }
                 return new Token(TokenType.MULTIPLY, "*");
             case '/':
                 advance();
+                if (curr == '=') {
+                    advance();
+                    return new Token(TokenType.DIVIDE_EQUAL, "/=");
+                }
                 return new Token(TokenType.DIVIDE, "/");
             case '=':
                 advance();
@@ -202,6 +218,9 @@ public class Lexer {
             case ':':
                 advance();
                 return new Token(TokenType.COLON, ":");
+            case'%':
+                advance();
+                return new Token(TokenType.MODULO, "%");
             default:
                 char unknown = curr;
                 advance();
@@ -249,7 +268,7 @@ public class Lexer {
                 tokens.add(string());
                 continue;
             }
-            if ("+-/*()=<>![]:".indexOf(curr) != -1) {
+            if ("+-/*()=<>![]:%".indexOf(curr) != -1) {
                 tokens.add(operator());
                 continue;
             }

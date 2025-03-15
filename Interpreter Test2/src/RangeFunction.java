@@ -1,22 +1,54 @@
 import java.util.List;
 import java.util.ArrayList;
-// Define an interface for callable functions.
 
-// Built-in range function: range(n) returns a list of numbers from 0 to n-1.
+// Built-in range function: supports range(n), range(start, end), and range(start, end, step).
 public class RangeFunction implements Callable {
     @Override
     public Object call(Interpreter interpreter, List<Object> arguments) {
-        if (arguments.size() != 1) {
-            throw new RuntimeException("range() expects exactly one argument");
+        int start, end, step;
+
+        if (arguments.size() == 1) {
+            // range(n): start=0, end=n, step=1.
+            if (!(arguments.get(0) instanceof Number)) {
+                throw new RuntimeException("range() argument must be a number");
+            }
+            start = 0;
+            end = ((Number) arguments.get(0)).intValue();
+            step = 1;
+        } else if (arguments.size() == 2) {
+            // range(start, end): step=1.
+            if (!(arguments.get(0) instanceof Number && arguments.get(1) instanceof Number)) {
+                throw new RuntimeException("range() arguments must be numbers");
+            }
+            start = ((Number) arguments.get(0)).intValue();
+            end = ((Number) arguments.get(1)).intValue();
+            step = 1;
+        } else if (arguments.size() == 3) {
+            // range(start, end, step)
+            if (!(arguments.get(0) instanceof Number && arguments.get(1) instanceof Number
+                    && arguments.get(2) instanceof Number)) {
+                throw new RuntimeException("range() arguments must be numbers");
+            }
+            start = ((Number) arguments.get(0)).intValue();
+            end = ((Number) arguments.get(1)).intValue();
+            step = ((Number) arguments.get(2)).intValue();
+            if (step == 0) {
+                throw new RuntimeException("range() step argument must not be zero");
+            }
+        } else {
+            throw new RuntimeException("range() expects 1, 2, or 3 arguments");
         }
-        Object arg = arguments.get(0);
-        if (!(arg instanceof Double)) {
-            throw new RuntimeException("range() argument must be a number");
-        }
-        int end = ((Double) arg).intValue();
+
         List<Object> list = new ArrayList<>();
-        for (int i = 0; i < end; i++) {
-            list.add((double) i);
+        if (step > 0) {
+            for (int i = start; i < end; i += step) {
+                list.add(i);
+            }
+        } else {
+            // For negative steps, count downwards.
+            for (int i = start; i > end; i += step) {
+                list.add(i);
+            }
         }
         return list;
     }

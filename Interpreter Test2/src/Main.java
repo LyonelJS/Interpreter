@@ -17,7 +17,7 @@ import java.io.PrintStream;
 import java.util.List;
 
 public class Main extends JFrame {
-    private JTextArea inputArea;       // For entering code.
+    private JTextArea inputArea;         // For entering code.
     public static JTextArea consoleArea; // Console for both output and input.
     private JButton runButton, clearButton, stopButton;
 
@@ -70,6 +70,21 @@ public class Main extends JFrame {
         inputArea.setBackground(backgroundDark);
         inputArea.setForeground(foregroundLight);
         inputArea.setCaretColor(Color.WHITE);
+
+        // Disable focus traversal on Tab and add a key listener that inserts 4 spaces.
+        inputArea.setFocusTraversalKeysEnabled(false);
+        inputArea.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_TAB) {
+                    int pos = inputArea.getCaretPosition();
+                    // Insert four spaces instead of a tab character.
+                    inputArea.insert("    ", pos);
+                    e.consume();
+                }
+            }
+        });
+
         JScrollPane inputScroll = new JScrollPane(inputArea);
         inputPanel.add(inputScroll, BorderLayout.CENTER);
 
@@ -212,20 +227,22 @@ public class Main extends JFrame {
         });
     }
 
-    // Run the code in a background thread.
+    // Run the code in a background thread ensuring a fresh execution.
     private void runCode() {
         String code = inputArea.getText().trim();
         if (code.isEmpty()) {
             consoleArea.setText("Error: No code entered.\n");
             return;
         }
-        // Synchronously clear the console and reset inputStart.
-        consoleArea.setText("");
-        inputStart = 0;
+
+        // Ensure any previous execution is stopped and environment reset.
+        stopExecution();
+        consoleArea.setText(""); // Clear the console output.
+        inputStart = 0;          // Reset the input marker.
 
         currentThread = new Thread(() -> {
             try {
-                // Create a PrintStream that writes directly to the console.
+                // Redirect output to console.
                 PrintStream ps = new PrintStream(new OutputStream() {
                     @Override
                     public void write(int b) throws IOException {
@@ -253,9 +270,11 @@ public class Main extends JFrame {
                 System.out.println("\nFinal Parsed AST:");
                 System.out.println(printAST(ast, 0));
 
-                // Interpretation.
-                System.out.println("\nInterpreting...");
+                // Create a fresh interpreter instance for this run.
                 Interpreter interpreter = new Interpreter();
+
+                // Interpretation.
+                System.out.println("\nInterpreting...\nResult: ");
                 interpreter.evaluate(ast);
 
                 System.out.flush();
@@ -270,15 +289,14 @@ public class Main extends JFrame {
     // Stop button action: interrupt running thread and clear output.
     private void stopExecution() {
         if (currentThread != null && currentThread.isAlive()) {
-            currentThread.interrupt();
-            currentThread = null;
+            currentThread.interrupt();  // Interrupt the running thread.
+            currentThread = null;         // Remove reference for garbage collection.
         }
-        // Clear only the console and reset inputStart; do not clear the input area.
-        consoleArea.setText("");
-        inputStart = 0;
+        consoleArea.setText("");  // Clear the console.
+        inputStart = 0;           // Reset input marker.
     }
 
-    // Helper method to print the AST.
+    // Helper method to print the AST (if needed for debugging).
     private String printAST(ASTNode node, int level) {
         if (node == null) return "";
         StringBuilder sb = new StringBuilder();

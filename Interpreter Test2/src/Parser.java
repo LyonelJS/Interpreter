@@ -48,6 +48,9 @@ public class Parser {
         // "range" is defined as a built-in function expecting 2 parameters.
         scopes.get(scopes.size() - 1).put("range", new Symbol("range", SymbolType.FUNCTION, 2));
         // Add more built-in functions as needed.
+        scopes.get(scopes.size()-1).put("int", new Symbol("int", SymbolType.FUNCTION, 1));
+        scopes.get(scopes.size()-1).put("float", new Symbol("float", SymbolType.FUNCTION, 1));
+
     }
 
     // Push a new scope.
@@ -119,14 +122,6 @@ public class Parser {
         advance();
     }
 
-    // Peek the next token without consuming it.
-    private Token peekToken() {
-        if (pos + 1 < tokens.size()) {
-            return tokens.get(pos + 1);
-        }
-        return new Token(TokenType.EOF, "EOF");
-    }
-
     // Skip extra newlines between statements.
     private void skipNewlines() {
         while (curr.type == TokenType.NEWLINE) {
@@ -174,13 +169,44 @@ public class Parser {
         } else {
             // Parse an expression as a candidate for assignment.
             ASTNode expr = expression();
-            if (curr.type == TokenType.EQUALS) {
+            // Check for assignment or compound assignment operators.
+            if (curr.type == TokenType.EQUALS ||
+                    curr.type == TokenType.PLUS_EQUAL ||
+                    curr.type == TokenType.MINUS_EQUAL ||
+                    curr.type == TokenType.MULTIPLY_EQUAL ||
+                    curr.type == TokenType.DIVIDE_EQUAL) {
+
                 // Left-hand side must be assignable.
                 if (!(expr instanceof IdentifierNode || expr instanceof IndexNode || expr instanceof FieldAccessNode)) {
                     throw new RuntimeException("Invalid assignment target.");
                 }
-                advance(); // consume '='
+
+                // Save the operator token and consume it.
+                Token op = curr;
+                advance(); // consume the operator
+
+                // Parse the right-hand side expression.
                 ASTNode right = expression();
+
+                // For compound assignments, transform x += y into x = x + y, etc.
+                if (op.type != TokenType.EQUALS) {
+                    Token binaryOp;
+                    if (op.type == TokenType.PLUS_EQUAL) {
+                        binaryOp = new Token(TokenType.PLUS, "+");
+                    } else if (op.type == TokenType.MINUS_EQUAL) {
+                        binaryOp = new Token(TokenType.MINUS, "-");
+                    } else if (op.type == TokenType.MULTIPLY_EQUAL) {
+                        binaryOp = new Token(TokenType.MULTIPLY, "*");
+                    } else if (op.type == TokenType.DIVIDE_EQUAL) {
+                        binaryOp = new Token(TokenType.DIVIDE, "/");
+                    } else {
+                        throw new RuntimeException("Unknown compound assignment operator: " + op.type);
+                    }
+                    // Create a binary operation node: left op right.
+                    right = new BinaryOpNode(expr, binaryOp, right);
+                }
+
+                // Create an assignment node.
                 if (expr instanceof IdentifierNode) {
                     IdentifierNode idNode = (IdentifierNode) expr;
                     if (lookup(idNode.identifier.value) == null) {
@@ -194,6 +220,7 @@ public class Parser {
             return expr;
         }
     }
+
 
     // Parse a print statement.
     private ASTNode printStatement() {
@@ -221,6 +248,16 @@ public class Parser {
         // Expect and consume IF.
         expect(TokenType.IF, "Expected 'if'"); // Now we require an IF token here.
         ASTNode condition = expression();
+
+        if (curr.type == TokenType.IN) {
+            Token inToken = curr; // Capture the 'in' token.
+            advance(); // Consume the 'in' token.
+            // Parse the expression representing the list.
+            ASTNode listExpression = expression();
+            // Create a binary operation (or membership test) node.
+            condition = new BinaryOpNode(condition, inToken, listExpression);
+        }
+
         expect(TokenType.NEWLINE, "Expected newline after if condition");
         expect(TokenType.INDENT, "Expected indent after if condition");
         enterScope();
@@ -527,7 +564,7 @@ public class Parser {
     // factor -> unary ( (MULTIPLY | DIVIDE) unary )*
     private ASTNode factor() {
         ASTNode node = unary();
-        while (curr.type == TokenType.MULTIPLY || curr.type == TokenType.DIVIDE) {
+        while (curr.type == TokenType.MULTIPLY || curr.type == TokenType.DIVIDE || curr.type == TokenType.MODULO) {
             Token op = curr;
             advance();
             ASTNode right = unary();
