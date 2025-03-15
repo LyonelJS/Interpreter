@@ -6,7 +6,7 @@ class Accumulator
         limit = initialLimit
 
     def add(val)
-        sum = sum + val
+        sum += val
 
     def getSum()
         return sum
@@ -42,7 +42,7 @@ def listTest()
     i = 0
     while i < 5
         print "Element at index " + i + ": " + nums[i]
-        i = i + 1
+        i += 1
 
 def accumulateTest()
     acc = Accumulator(0, 50)
@@ -54,7 +54,7 @@ def accumulateTest()
         else
             acc.add(num + 2)
             print "Added " + (num + 2) + ", sum: " + acc.getSum()
-        num = num + 3
+        num += 3
 
 def toggleTest()
     flag = false
@@ -65,7 +65,7 @@ def toggleTest()
         else
             print "Skipped count: " + count
         flag = not flag
-        count = count - 1
+        count -= 1
 
 def forLoopTest()
     for i = 1,4
@@ -80,7 +80,7 @@ def nestedTest()
         j = 1
         while j <= 2
             print "Nested Loop -> i: " + i + ", j: " + j
-            j = j + 1
+            j += 1
 
 // Call the functions to exercise all features.
 listTest()
@@ -127,6 +127,7 @@ else
     print "Failing. Please see your instructor."
 
 
+
 print "Grocery List App"
 grocery = []     // Initialize an empty grocery list.
 
@@ -141,20 +142,27 @@ while choice != "4"
     else if choice == "2"
         // Show the current list.
 		num = 0
-        print "Your grocery list: " 
-		for i in grocery
-			num = num + 1
-			print num + ". "+ i
+        if grocery.size() > 0
+            print "Your grocery list: " 
+		    for i in grocery
+			    num += 1
+			    print num + ". "+ i
+        else
+            print "Your list is empty"
     else if choice == "3"
         // Remove an item.
         item = input("Enter the item to remove: ")
-        grocery.remove(item)
-        print "Removed item: " + item
+        if item in grocery
+            grocery.remove(item)
+            print "Removed item: " + item
+        else
+            print item + " not in grocery List"
     else
         print "Invalid choice. Please try again."
     choice = input("Choose an action (1: add, 2: show, 3: remove, 4: exit): ")
 
 print "Goodbye!"
+
 
 
 
@@ -180,3 +188,36 @@ list index assignment
 list splicing
 list append
 list pop
++=, -=, *=, /=
+in list
+float()
+int()
+range()
+input(“Enter input: “), produces String
+
+Things to add: 
+Dictionary
+Inheritance
+Try-catch error handling
+List comprehensions: 
+nums = [x * 2 for x in range(5)]
+print nums  // Output: [0, 2, 4, 6, 8]
+Imports
+f string
+name = "Hi"
+age = 25
+print f"My name is {name} and I am {age} years old."
+
+Switch case
+match x
+    case 1
+        print("One")
+    case 2
+        print("Two")
+    case _
+        print("Other")
+
+File I/O support or File read or write
+
+
+
