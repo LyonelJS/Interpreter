@@ -8,15 +8,16 @@ public class Lexer {
     String input;
     int pos;
     char curr;
+    int line = 1; // Track the current line number
     Stack<Integer> indentStack = new Stack<>();
-    int listNesting = 0; // New variable to track list nesting
+    int listNesting = 0; // Track list nesting
 
     private static final Map<String, TokenType> KEYWORDS = new HashMap<>();
     static {
         KEYWORDS.put("print", TokenType.PRINT);
         KEYWORDS.put("if", TokenType.IF);
         KEYWORDS.put("else", TokenType.ELSE);
-        // We'll handle "else if" specially, so no need to put it here.
+        // "else if" will be handled separately.
         KEYWORDS.put("function", TokenType.DEF);
         KEYWORDS.put("class", TokenType.CLASS);
         KEYWORDS.put("and", TokenType.AND);
@@ -38,7 +39,11 @@ public class Lexer {
         indentStack.push(0); // Start with indent level 0
     }
 
+    // Advances the current position and updates the line counter when a newline is encountered.
     public void advance() {
+        if (curr == '\n') {
+            line++;
+        }
         pos++;
         curr = pos < input.length() ? input.charAt(pos) : '\0';
     }
@@ -49,6 +54,7 @@ public class Lexer {
         }
     }
 
+    // Handles indentation by comparing the number of leading spaces/tabs.
     private void handleIndentation(List<Token> tokens) {
         int spaces = 0;
         while (curr == ' ' || curr == '\t') {
@@ -61,11 +67,11 @@ public class Lexer {
         int prevIndent = indentStack.peek();
         if (spaces > prevIndent) {
             indentStack.push(spaces);
-            tokens.add(new Token(TokenType.INDENT, "INDENT", spaces));
+            tokens.add(new Token(TokenType.INDENT, "INDENT", line, spaces));
         } else {
             while (!indentStack.isEmpty() && spaces < indentStack.peek()) {
-                indentStack.pop();
-                tokens.add(new Token(TokenType.DEDENT, "DEDENT"));
+                int poppedIndent = indentStack.pop();
+                tokens.add(new Token(TokenType.DEDENT, "DEDENT", line, poppedIndent));
             }
         }
     }
@@ -76,7 +82,7 @@ public class Lexer {
             result.append(curr);
             advance();
         }
-        return new Token(TokenType.NUMBER, result.toString());
+        return new Token(TokenType.NUMBER, result.toString(), line);
     }
 
     public Token identifier() {
@@ -86,16 +92,13 @@ public class Lexer {
             advance();
         }
         String word = result.toString();
-        // Check for "else if" (combine "else" followed by "if" on the same line)
+        // Check for "else if" by looking ahead after "else"
         if (word.equals("else")) {
-            // Save current state for lookahead.
             int savedPos = pos;
             char savedCurr = curr;
-            // Skip spaces/tabs but stop if a newline is encountered.
             while ((curr == ' ' || curr == '\t') && curr != '\n' && curr != '\0') {
                 advance();
             }
-            // Collect the next word (if any) without consuming it permanently.
             StringBuilder nextWord = new StringBuilder();
             int tempPos = pos;
             char tempCurr = tempPos < input.length() ? input.charAt(tempPos) : '\0';
@@ -105,42 +108,40 @@ public class Lexer {
                 tempCurr = tempPos < input.length() ? input.charAt(tempPos) : '\0';
             }
             if (nextWord.toString().equals("if")) {
-                // Consume the "if" by advancing the lexer.
                 for (int i = 0; i < nextWord.length(); i++) {
                     advance();
                 }
-                return new Token(TokenType.ELSEIF, "else if");
+                return new Token(TokenType.ELSEIF, "else if", line);
             } else {
-                // Not "else if": revert to saved state.
                 pos = savedPos;
                 curr = savedCurr;
             }
         }
         TokenType type = KEYWORDS.getOrDefault(word, TokenType.IDENTIFIER);
-        return new Token(type, word);
+        return new Token(type, word, line);
     }
 
     public Token string() {
         StringBuilder result = new StringBuilder();
         advance(); // Skip opening quote
-        while (curr != '"' && curr != '\0') { // Prevent infinite loop
+        while (curr != '"' && curr != '\0') {
             result.append(curr);
             advance();
         }
         if (curr == '"') {
             advance(); // Skip closing quote
         }
-        return new Token(TokenType.STRING, result.toString());
+        return new Token(TokenType.STRING, result.toString(), line);
     }
 
     public Token comma() {
         advance();
-        return new Token(TokenType.COMMA, ",");
+        return new Token(TokenType.COMMA, ",", line);
     }
 
     public Token dot() {
         advance();
-        return new Token(TokenType.DOT, ".");
+        return new Token(TokenType.DOT, ".", line);
     }
 
     public Token operator() {
@@ -149,82 +150,82 @@ public class Lexer {
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.PLUS_EQUAL, "+=");
+                    return new Token(TokenType.PLUS_EQUAL, "+=", line);
                 }
-                return new Token(TokenType.PLUS, "+");
+                return new Token(TokenType.PLUS, "+", line);
             case '-':
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.MINUS_EQUAL, "-=");
+                    return new Token(TokenType.MINUS_EQUAL, "-=", line);
                 }
-                return new Token(TokenType.MINUS, "-");
+                return new Token(TokenType.MINUS, "-", line);
             case '*':
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.MULTIPLY_EQUAL, "*=");
+                    return new Token(TokenType.MULTIPLY_EQUAL, "*=", line);
                 }
-                return new Token(TokenType.MULTIPLY, "*");
+                return new Token(TokenType.MULTIPLY, "*", line);
             case '/':
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.DIVIDE_EQUAL, "/=");
+                    return new Token(TokenType.DIVIDE_EQUAL, "/=", line);
                 }
-                return new Token(TokenType.DIVIDE, "/");
+                return new Token(TokenType.DIVIDE, "/", line);
             case '=':
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.EQUAL_EQUAL, "=="); // Equality operator
+                    return new Token(TokenType.EQUAL_EQUAL, "==", line);
                 }
-                return new Token(TokenType.EQUALS, "=");
+                return new Token(TokenType.EQUALS, "=", line);
             case '(':
                 advance();
-                return new Token(TokenType.LPAREN, "(");
+                return new Token(TokenType.LPAREN, "(", line);
             case ')':
                 advance();
-                return new Token(TokenType.RPAREN, ")");
+                return new Token(TokenType.RPAREN, ")", line);
             case '>':
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.GREATER_EQUAL, ">=");
+                    return new Token(TokenType.GREATER_EQUAL, ">=", line);
                 }
-                return new Token(TokenType.GREATER, ">");
+                return new Token(TokenType.GREATER, ">", line);
             case '<':
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.LESS_EQUAL, "<=");
+                    return new Token(TokenType.LESS_EQUAL, "<=", line);
                 }
-                return new Token(TokenType.LESS, "<");
+                return new Token(TokenType.LESS, "<", line);
             case '!':
                 advance();
                 if (curr == '=') {
                     advance();
-                    return new Token(TokenType.NOTEQUAL, "!=");
+                    return new Token(TokenType.NOTEQUAL, "!=", line);
                 }
-                return new Token(TokenType.NOT, "!");
+                return new Token(TokenType.NOT, "!", line);
             case '[':
                 listNesting++; // Entering a list
                 advance();
-                return new Token(TokenType.LBRACKET, "[");
+                return new Token(TokenType.LBRACKET, "[", line);
             case ']':
                 listNesting--; // Exiting a list
                 advance();
-                return new Token(TokenType.RBRACKET, "]");
+                return new Token(TokenType.RBRACKET, "]", line);
             case ':':
                 advance();
-                return new Token(TokenType.COLON, ":");
-            case'%':
+                return new Token(TokenType.COLON, ":", line);
+            case '%':
                 advance();
-                return new Token(TokenType.MODULO, "%");
+                return new Token(TokenType.MODULO, "%", line);
             default:
                 char unknown = curr;
                 advance();
-                throw new RuntimeException("Unexpected character: " + unknown);
+                throw new RuntimeException("Error at line " + line + ": " + "Unexpected character: " + unknown);
         }
     }
 
@@ -279,21 +280,21 @@ public class Lexer {
                     continue;
                 }
                 if (tokens.isEmpty() || tokens.get(tokens.size() - 1).type != TokenType.NEWLINE) {
-                    tokens.add(new Token(TokenType.NEWLINE, "\\n"));
+                    tokens.add(new Token(TokenType.NEWLINE, "\\n", line));
                 }
                 handleIndentation(tokens);
                 continue;
             }
-            throw new RuntimeException("Unexpected character: " + curr);
+            throw new RuntimeException("Error at line " + line + ": " + "Unexpected character: " + curr);
         }
 
-        // Handle final dedents
+        // Handle final dedents by popping any remaining indent levels.
         while (indentStack.peek() > 0) {
-            indentStack.pop();
-            tokens.add(new Token(TokenType.DEDENT, "DEDENT"));
+            int poppedIndent = indentStack.pop();
+            tokens.add(new Token(TokenType.DEDENT, "DEDENT", line, poppedIndent));
         }
 
-        tokens.add(new Token(TokenType.EOF, "EOF"));
+        tokens.add(new Token(TokenType.EOF, "EOF", line));
         return tokens;
     }
 }

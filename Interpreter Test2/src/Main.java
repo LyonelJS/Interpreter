@@ -17,8 +17,8 @@ import java.io.PrintStream;
 import java.util.List;
 
 public class Main extends JFrame {
-    private JTextArea inputArea;         // For entering code.
-    public static JTextArea consoleArea; // Console for both output and input.
+    private JTextArea inputArea;
+    public static JTextArea consoleArea;
     private JButton runButton, clearButton, stopButton;
 
     // For interactive input handling.

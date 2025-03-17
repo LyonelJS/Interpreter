@@ -72,12 +72,14 @@ public class Parser {
         }
         return null;
     }
-
+    private RuntimeException error(Token token, String message) {
+        return new RuntimeException("Error at line " + token.line + ": " + message);
+    }
     // Define a variable in the current scope.
     private void defineVariable(String name) {
         HashMap<String, Symbol> currentScope = scopes.get(scopes.size() - 1);
         if (currentScope.containsKey(name)) {
-            throw new RuntimeException("Semantic error: Variable '" + name + "' is already defined in this scope.");
+            throw error(curr, "Semantic error: Variable '" + name + "' is already defined in this scope.");
         }
         currentScope.put(name, new Symbol(name, SymbolType.VARIABLE, 0));
     }
@@ -86,7 +88,7 @@ public class Parser {
     private void defineFunction(String name, int paramCount) {
         HashMap<String, Symbol> currentScope = scopes.get(scopes.size() - 1);
         if (currentScope.containsKey(name)) {
-            throw new RuntimeException("Semantic error: Function '" + name + "' is already defined in this scope.");
+            throw error(curr, "Semantic error: Function '" + name + "' is already defined in this scope.");
         }
         currentScope.put(name, new Symbol(name, SymbolType.FUNCTION, paramCount));
     }
@@ -95,7 +97,7 @@ public class Parser {
     private void defineClass(String name) {
         HashMap<String, Symbol> currentScope = scopes.get(scopes.size() - 1);
         if (currentScope.containsKey(name)) {
-            throw new RuntimeException("Semantic error: Class '" + name + "' is already defined in this scope.");
+            throw error(curr, "Semantic error: Class '" + name + "' is already defined in this scope.");
         }
         currentScope.put(name, new Symbol(name, SymbolType.CLASS, 0));
     }
@@ -117,7 +119,7 @@ public class Parser {
 
     private void expect(TokenType type, String errorMessage) {
         if (curr.type != type) {
-            throw new RuntimeException(errorMessage + " Found: " + curr.value);
+            throw error(curr, errorMessage + " Found: " + curr.value + "At line: " + curr.line);
         }
         advance();
     }
@@ -178,7 +180,7 @@ public class Parser {
 
                 // Left-hand side must be assignable.
                 if (!(expr instanceof IdentifierNode || expr instanceof IndexNode || expr instanceof FieldAccessNode)) {
-                    throw new RuntimeException("Invalid assignment target.");
+                    throw error(curr, "Invalid assignment target.");
                 }
 
                 // Save the operator token and consume it.
@@ -200,7 +202,7 @@ public class Parser {
                     } else if (op.type == TokenType.DIVIDE_EQUAL) {
                         binaryOp = new Token(TokenType.DIVIDE, "/");
                     } else {
-                        throw new RuntimeException("Unknown compound assignment operator: " + op.type);
+                        throw error(curr, "Unknown compound assignment operator: " + op.type);
                     }
                     // Create a binary operation node: left op right.
                     right = new BinaryOpNode(expr, binaryOp, right);
@@ -422,7 +424,7 @@ public class Parser {
         expect(TokenType.IDENTIFIER, "Expected class name");
         Token className = tokens.get(pos - 1);
         if (scopes.get(scopes.size() - 1).containsKey(className.value)) {
-            throw new RuntimeException("Semantic error: Class '" + className.value + "' is already defined in this scope.");
+            throw error(curr, "Semantic error: Class '" + className.value + "' is already defined in this scope.");
         }
         defineClass(className.value);
         expect(TokenType.NEWLINE, "Expected newline after class name");
@@ -611,7 +613,7 @@ public class Parser {
             if (curr.type == TokenType.LPAREN) {
                 Symbol sym = lookup(token.value);
                 if (sym == null) {
-                    throw new RuntimeException("Semantic error: Identifier '" + token.value + "' is not defined");
+                    throw error(curr, "Semantic error: Identifier '" + token.value + "' is not defined");
                 }
                 if (sym.type == SymbolType.CLASS) {
                     node = objectCreationWithoutNew(token);
@@ -649,7 +651,7 @@ public class Parser {
             // This branch handles list literals.
             node = parseList();
         } else {
-            throw new RuntimeException("Unexpected token: " + curr.value);
+            throw error(curr, "Unexpected token: " + curr.value);
         }
 
         // Now support chaining for field accesses, indexing, and slicing.
