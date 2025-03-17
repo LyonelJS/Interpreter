@@ -289,11 +289,11 @@ public class Main extends JFrame {
     // Stop button action: interrupt running thread and clear output.
     private void stopExecution() {
         if (currentThread != null && currentThread.isAlive()) {
-            currentThread.interrupt();  // Interrupt the running thread.
-            currentThread = null;         // Remove reference for garbage collection.
+            currentThread.interrupt();
+            currentThread = null;
         }
-        consoleArea.setText("");  // Clear the console.
-        inputStart = 0;           // Reset input marker.
+        consoleArea.setText("");
+        inputStart = 0;          
     }
 
     // Helper method to print the AST (if needed for debugging).
