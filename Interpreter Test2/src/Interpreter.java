@@ -17,12 +17,8 @@ public class Interpreter {
         environment = globals;
     }
 
-    public void interpret(ASTNode node) {
-        try {
-            evaluate(node);
-        } catch (RuntimeException e) {
-            System.out.println("Runtime error: " + e.getMessage());
-        }
+    private RuntimeException runtimeError(ASTNode node, String message) {
+        return new RuntimeException("Runtime error at line " + node.line + ": " + message);
     }
 
     public Object evaluate(ASTNode node) {
@@ -91,17 +87,17 @@ public class Interpreter {
         Object index = evaluate(node.getIndex());
 
         if (!(base instanceof List)) {
-            throw new RuntimeException("Indexing operator can only be applied to lists.");
+            throw runtimeError(node, "Indexing operator can only be applied to lists.");
         }
         List<?> list = (List<?>) base;
 
         if (!(index instanceof Number)) { // Assuming numbers are represented as Double
-            throw new RuntimeException("List index must be a number.");
+            throw runtimeError(node, "List index must be a number.");
         }
         int idx = ((Number) index).intValue();
 
         if (idx < 0 || idx >= list.size()) {
-            throw new RuntimeException("List index out of bounds: " + idx);
+            throw runtimeError(node, "List index out of bounds: " + idx);
         }
         return list.get(idx);
     }
@@ -109,7 +105,7 @@ public class Interpreter {
     private Object evaluateSlice(SliceNode node) {
         Object baseObj = evaluate(node.getTarget());
         if (!(baseObj instanceof List)) {
-            throw new RuntimeException("Slice operator can only be applied to lists.");
+            throw runtimeError(node, "Slice operator can only be applied to lists.");
         }
         List<Object> list = (List<Object>) baseObj;
         int size = list.size();
@@ -119,7 +115,7 @@ public class Interpreter {
         if (node.getStart() != null) {
             Object startVal = evaluate(node.getStart());
             if (!(startVal instanceof Number)) {
-                throw new RuntimeException("Slice start must be a number.");
+                throw runtimeError(node, "Slice start must be a number.");
             }
             start = ((Number) startVal).intValue();
         }
@@ -129,7 +125,7 @@ public class Interpreter {
         if (node.getEnd() != null) {
             Object endVal = evaluate(node.getEnd());
             if (!(endVal instanceof Number)) {
-                throw new RuntimeException("Slice end must be a number.");
+                throw runtimeError(node, "Slice end must be a number.");
             }
             end = ((Number) endVal).intValue();
         }
@@ -139,11 +135,11 @@ public class Interpreter {
         if (node.getStep() != null) {
             Object stepVal = evaluate(node.getStep());
             if (!(stepVal instanceof Number)) {
-                throw new RuntimeException("Slice step must be a number.");
+                throw runtimeError(node, "Slice step must be a number.");
             }
             step = ((Number) stepVal).intValue();
             if (step == 0) {
-                throw new RuntimeException("Slice step cannot be zero.");
+                throw runtimeError(node, "Slice step cannot be zero.");
             }
         }
 
@@ -176,17 +172,17 @@ public class Interpreter {
             // Evaluate the base expression (should yield a List).
             Object base = evaluate(indexNode.getBase());
             if (!(base instanceof List)) {
-                throw new RuntimeException("Index assignment target must be a list.");
+                throw runtimeError(node, "Index assignment target must be a list.");
             }
             List<Object> list = (List<Object>) base;
             // Evaluate the index expression.
             Object indexVal = evaluate(indexNode.getIndex());
             if (!(indexVal instanceof Number)) { // Accept any Number type.
-                throw new RuntimeException("List index must be a number.");
+                throw runtimeError(node, "List index must be a number.");
             }
             int idx = ((Number) indexVal).intValue();
             if (idx < 0 || idx >= list.size()) {
-                throw new RuntimeException("List index out of bounds: " + idx);
+                throw runtimeError(node, "List index out of bounds: " + idx);
             }
             // Evaluate the right-hand side (value to assign).
             Object value = evaluate(node.getValue());
@@ -198,14 +194,14 @@ public class Interpreter {
             FieldAccessNode fieldAccess = (FieldAccessNode) targetExpr;
             Object instanceObj = evaluate(fieldAccess.target);
             if (!(instanceObj instanceof Instance)) {
-                throw new RuntimeException("Field assignment target is not an instance.");
+                throw runtimeError(node, "Field assignment target is not an instance.");
             }
             Instance instance = (Instance) instanceObj;
             Object value = evaluate(node.getValue());
             instance.set(fieldAccess.fieldName.value, value);
             return value;
         } else {
-            throw new RuntimeException("Invalid assignment target for compound assignment.");
+            throw runtimeError(node, "Invalid assignment target for compound assignment.");
         }
     }
 
@@ -213,7 +209,7 @@ public class Interpreter {
     private Object evaluateFieldAssignment(FieldAssignmentNode node) {
         Object targetObj = evaluate(node.target);
         if (!(targetObj instanceof Instance)) {
-            throw new RuntimeException("Field assignment target is not an instance.");
+            throw runtimeError(node, "Field assignment target is not an instance.");
         }
         Instance instance = (Instance) targetObj;
         Object value = evaluate(node.value);
@@ -241,7 +237,7 @@ public class Interpreter {
     private Object evaluateIdentifier(IdentifierNode node) {
         // If we're inside a method (i.e. "this" exists), check instance attributes first.
         if (environment.exists("this")) {
-            Object thisVal = environment.get("this");
+            Object thisVal = environment.get("this", node.line);
             if (thisVal instanceof Instance) {
                 Instance instance = (Instance) thisVal;
                 // Check if the instance has a field with the given name.
@@ -251,7 +247,7 @@ public class Interpreter {
             }
         }
         // Otherwise, fall back to the normal environment lookup.
-        return environment.get(node.identifier.value);
+        return environment.get(node.identifier.value, node.line);
     }
 
     private boolean isEqual(Object a, Object b) {
@@ -280,7 +276,7 @@ public class Interpreter {
         // Membership test: if x in list.
         if (op.equals("in")) {
             if (!(right instanceof List)) {
-                throw new RuntimeException("Operator 'in' expects a list as the right operand.");
+                throw runtimeError(node, "Operator 'in' expects a list as the right operand.");
             }
             List<?> list = (List<?>) right;
             return list.contains(left);
@@ -299,7 +295,7 @@ public class Interpreter {
             if (op.equals("+")) {
                 return formatValue(left) + formatValue(right);
             } else {
-                throw new RuntimeException("Unsupported operation for strings: " + op);
+                throw runtimeError(node, "Unsupported operation for strings: " + op);
             }
         }
 
@@ -311,18 +307,21 @@ public class Interpreter {
                 case "+": return l + r;
                 case "-": return l - r;
                 case "*": return l * r;
-                case "/": return l / r;
+                case "/":
+                    if (r == 0) {
+                        throw runtimeError(node, "Division by 0");
+                    }
+                    return l/r;
                 case "%": return l % r;
                 case ">": return l > r;
                 case ">=": return l >= r;
                 case "<": return l < r;
                 case "<=": return l <= r;
                 default:
-                    throw new RuntimeException("Unknown binary operator: " + op);
+                    throw runtimeError(node, "Unknown binary operator: " + op);
             }
         }
-
-        throw new RuntimeException("Unsupported operands for operator '" + op + "': " +
+        throw runtimeError(node, "Unsupported operands for operator '" + op + "': " +
                 left.getClass().getSimpleName() + " and " + right.getClass().getSimpleName());
     }
 
@@ -338,7 +337,7 @@ public class Interpreter {
             case "+": return +val;
             case "-": return -val;
             default:
-                throw new RuntimeException("Unknown unary operator: " + op);
+                throw runtimeError(node, "Unknown unary operator: " + op);
         }
     }
 
@@ -429,7 +428,7 @@ public class Interpreter {
         Object startObj = evaluate(node.start);
         Object endObj = evaluate(node.end);
         if (!(startObj instanceof Number) || !(endObj instanceof Number)) {
-            throw new RuntimeException("For loop: start and end values must be numbers.");
+            throw runtimeError(node, "For loop: start and end values must be numbers.");
         }
         Number startVal = (Number) startObj;
         Number endVal = (Number) endObj;
@@ -453,7 +452,7 @@ public class Interpreter {
     private Object evaluateForEach(ForEachNode node) {
         Object iterable = evaluate(node.getListExpr());
         if (!(iterable instanceof List)) {
-            throw new RuntimeException("For-each loop expects a list.");
+            throw runtimeError(node, "For-each loop expects a list after 'in'.");
         }
         List<?> list = (List<?>) iterable;
         Object result = null;
@@ -493,7 +492,7 @@ public class Interpreter {
         if (callee instanceof Function) {
             Function function = (Function) callee;
             if (arguments.size() != function.declaration.parameters.size()) {
-                throw new RuntimeException("Function " + node.name.value + " expects " +
+                throw runtimeError(node, "Function " + node.name.value + " expects " +
                         function.declaration.parameters.size() + " arguments, but got " + arguments.size());
             }
             try {
@@ -505,7 +504,7 @@ public class Interpreter {
             Callable callable = (Callable) callee;
             return callable.call(this, arguments);
         } else {
-            throw new RuntimeException("Attempted to call a non-function: " + node.name.value);
+            throw runtimeError(node, "Attempted to call a non-function: " + node.name.value);
         }
     }
 
@@ -527,18 +526,27 @@ public class Interpreter {
     private Object evaluateObjectCreation(ObjectCreationNode node) {
         Object classObj = environment.get(node.className.value);
         if (!(classObj instanceof ClassValue)) {
-            throw new RuntimeException("Attempted to instantiate non-class: " + node.className.value);
+            throw runtimeError(node, "Attempted to instantiate non-class: " + node.className.value);
         }
         ClassValue classValue = (ClassValue) classObj;
         List<Object> arguments = new ArrayList<>();
         for (ASTNode arg : node.arguments) {
             arguments.add(evaluate(arg));
         }
-        if (!arguments.isEmpty() && classValue.findMethod("init") == null) {
-            throw new RuntimeException("Constructor arguments provided, but no initializer ('init') defined for class: " + classValue.name);
+        // Get the initializer method (if any)
+        Function initMethod = classValue.findMethod("init");
+        if (initMethod == null && !arguments.isEmpty()) {
+            throw runtimeError(node, "Constructor arguments provided, but no initializer ('init') defined for class: " + classValue.name);
+        }
+        if (initMethod != null) {
+            int expectedParamCount = initMethod.paramCount();
+            if (arguments.size() != expectedParamCount) {
+                throw runtimeError(node, "Initializer 'init' for class " + classValue.name + " expects " + expectedParamCount + " argument(s), but received " + arguments.size());
+            }
         }
         return classValue.instantiate(arguments, this);
     }
+
 
     private Object evaluateMethodCall(MethodCallNode node) {
         Object target = evaluate(node.target);
@@ -548,41 +556,41 @@ public class Interpreter {
             List<Object> list = (List<Object>) target;
             if (methodName.equals("append")) {
                 if (node.arguments.size() != 1) {
-                    throw new RuntimeException("append() expects one argument.");
+                    throw runtimeError(node, "append() expects one argument.");
                 }
                 Object arg = evaluate(node.arguments.get(0));
                 list.add(arg);
                 return null;
             } else if (methodName.equals("pop")) {
                 if (!node.arguments.isEmpty()) {
-                    throw new RuntimeException("pop() expects no arguments.");
+                    throw runtimeError(node, "pop() expects no arguments.");
                 }
                 if (list.isEmpty()) {
-                    throw new RuntimeException("pop() called on an empty list.");
+                    throw runtimeError(node, "pop() called on an empty list.");
                 }
                 return list.remove(list.size() - 1);
             } else if (methodName.equals("remove")) {
                 // remove(item): removes the first occurrence of item.
                 if (node.arguments.size() != 1) {
-                    throw new RuntimeException("remove() expects one argument.");
+                    throw runtimeError(node, "remove() expects one argument.");
                 }
                 Object arg = evaluate(node.arguments.get(0));
                 boolean removed = list.remove(arg); // removes first occurrence if found.
                 if (!removed) {
-                    throw new RuntimeException("remove() did not find the element to remove: " + arg);
+                    throw runtimeError(node, "remove() did not find the element to remove: " + arg);
                 }
                 return null;
             } else if (methodName.equals("size")) {
                 // size() returns the number of elements in the list.
                 if (!node.arguments.isEmpty()) {
-                    throw new RuntimeException("size() expects no arguments.");
+                    throw runtimeError(node, "size() expects no arguments.");
                 }
                 return (double) list.size(); // Assuming numbers are represented as Double.
             }
         }
         // Otherwise, handle it as a normal instance method call.
         if (!(target instanceof Instance)) {
-            throw new RuntimeException("Attempted to call method on non-instance.");
+            throw runtimeError(node, "Attempted to call method on non-instance.");
         }
         Instance instance = (Instance) target;
         List<Object> arguments = new ArrayList<>();
@@ -591,7 +599,7 @@ public class Interpreter {
         }
         Function method = instance.getMethod(node.methodName.value);
         if (method == null) {
-            throw new RuntimeException("Method '" + node.methodName.value + "' not found.");
+            throw runtimeError(node, "Method '" + node.methodName.value + "' not found.");
         }
         try {
             return method.call(this, arguments, instance);

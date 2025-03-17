@@ -13,14 +13,20 @@ public class Environment {
         values.put(name, value);
     }
 
-    public Object get(String name) {
+    // Overloaded get method that includes a line number.
+    public Object get(String name, int line) {
         if (values.containsKey(name)) {
             return values.get(name);
         }
         if (enclosing != null) {
-            return enclosing.get(name);
+            return enclosing.get(name, line);
         }
-        throw new RuntimeException("Undefined variable: " + name);
+        throw new RuntimeException("Undefined variable at line " + line + ": " + name);
+    }
+
+    // Optionally, you can keep the original get(String) method as a wrapper.
+    public Object get(String name) {
+        return get(name, -1); // or choose to not use it at all.
     }
 
     public boolean exists(String name) {
@@ -33,15 +39,21 @@ public class Environment {
         return values.containsKey(name);
     }
 
-    public void assign(String name, Object value) {
+    // Overloaded assign method that includes a line number.
+    public void assign(String name, Object value, int line) {
         if (values.containsKey(name)) {
             values.put(name, value);
             return;
         }
         if (enclosing != null) {
-            enclosing.assign(name, value);
+            enclosing.assign(name, value, line);
             return;
         }
-        throw new RuntimeException("Undefined variable: " + name);
+        throw new RuntimeException("Undefined variable at line " + line + ": " + name);
+    }
+
+    // Optionally, keep the original assign(String, Object) method.
+    public void assign(String name, Object value) {
+        assign(name, value, -1);
     }
 }

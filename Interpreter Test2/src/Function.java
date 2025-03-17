@@ -9,7 +9,9 @@ public class Function {
         this.declaration = declaration;
         this.closure = new Environment(closure);
     }
-
+    public int paramCount() {
+        return declaration.parameters.size();
+    }
     public Object call(Interpreter interpreter, List<Object> arguments) {
         Environment environment = new Environment(closure);
         List<Token> params = declaration.parameters;

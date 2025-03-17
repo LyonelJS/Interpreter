@@ -117,6 +117,7 @@ public class Lexer {
                 curr = savedCurr;
             }
         }
+
         TokenType type = KEYWORDS.getOrDefault(word, TokenType.IDENTIFIER);
         return new Token(type, word, line);
     }
@@ -236,6 +237,13 @@ public class Lexer {
     public List<Token> tokenize() {
         List<Token> tokens = new ArrayList<>();
 
+        // Process any leading newlines before any code.
+        while (curr == '\n') {
+            advance(); // This will increment the line counter.
+            // Always add a NEWLINE token for each newline.
+            tokens.add(new Token(TokenType.NEWLINE, "\\n", line));
+        }
+
         while (curr != '\0') {
             if (curr == '/' && peek() == '/') {
                 advance();
@@ -274,7 +282,7 @@ public class Lexer {
                 continue;
             }
             if (curr == '\n') {
-                advance(); // Move past newline
+                advance(); // Consume the newline (and increment line via advance())
                 // If inside a list, ignore newlines completely.
                 if (listNesting > 0) {
                     continue;
@@ -297,4 +305,5 @@ public class Lexer {
         tokens.add(new Token(TokenType.EOF, "EOF", line));
         return tokens;
     }
+
 }

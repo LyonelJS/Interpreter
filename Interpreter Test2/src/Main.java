@@ -219,17 +219,9 @@ public class Main extends JFrame {
         button.setPreferredSize(new Dimension(80, 40));
     }
 
-    // Append text to the console area.
-    public static void appendToConsole(String text) {
-        SwingUtilities.invokeLater(() -> {
-            consoleArea.append(text);
-            consoleArea.setCaretPosition(consoleArea.getDocument().getLength());
-        });
-    }
-
     // Run the code in a background thread ensuring a fresh execution.
     private void runCode() {
-        String code = inputArea.getText().trim();
+        String code = inputArea.getText();
         if (code.isEmpty()) {
             consoleArea.setText("Error: No code entered.\n");
             return;
