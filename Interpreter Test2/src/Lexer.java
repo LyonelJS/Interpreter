@@ -287,7 +287,7 @@ public class Lexer {
                 if (listNesting > 0) {
                     continue;
                 }
-                if (tokens.isEmpty() || tokens.get(tokens.size() - 1).type != TokenType.NEWLINE) {
+                if (tokens.isEmpty() || tokens.getLast().type != TokenType.NEWLINE) {
                     tokens.add(new Token(TokenType.NEWLINE, "\\n", line));
                 }
                 handleIndentation(tokens);

@@ -3,13 +3,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Parser {
-    private List<Token> tokens;
-    private int pos = 0;
+    private final List<Token> tokens;
+    private int pos;
     private Token curr;
 
     // Symbol table support: a stack of scopes.
     // Each scope is a map from variable, function, or class names to Symbols.
-    private List<HashMap<String, Symbol>> scopes = new ArrayList<>();
+    private final List<HashMap<String, Symbol>> scopes = new ArrayList<>();
 
     // A symbol can be a variable, a function, or a class.
     private static class Symbol {
@@ -44,12 +44,12 @@ public class Parser {
     // Add built-in functions (like input and range) to the global symbol table.
     private void defineBuiltInFunctions() {
         // "input" is defined as a built-in function expecting 1 parameter.
-        scopes.get(scopes.size() - 1).put("input", new Symbol("input", SymbolType.FUNCTION, 1));
+        scopes.getLast().put("input", new Symbol("input", SymbolType.FUNCTION, 1));
         // "range" is defined as a built-in function expecting 2 parameters.
-        scopes.get(scopes.size() - 1).put("range", new Symbol("range", SymbolType.FUNCTION, 2));
+        scopes.getLast().put("range", new Symbol("range", SymbolType.FUNCTION, 2));
         // Add more built-in functions as needed.
-        scopes.get(scopes.size()-1).put("int", new Symbol("int", SymbolType.FUNCTION, 1));
-        scopes.get(scopes.size()-1).put("float", new Symbol("float", SymbolType.FUNCTION, 1));
+        scopes.getLast().put("int", new Symbol("int", SymbolType.FUNCTION, 1));
+        scopes.getLast().put("float", new Symbol("float", SymbolType.FUNCTION, 1));
 
     }
 
@@ -60,7 +60,7 @@ public class Parser {
 
     // Pop the current scope.
     private void exitScope() {
-        scopes.remove(scopes.size() - 1);
+        scopes.removeLast();
     }
 
     // Look up a symbol by name (searching from innermost to outermost scope).
@@ -77,7 +77,7 @@ public class Parser {
     }
     // Define a variable in the current scope.
     private void defineVariable(String name) {
-        HashMap<String, Symbol> currentScope = scopes.get(scopes.size() - 1);
+        HashMap<String, Symbol> currentScope = scopes.getLast();
         if (currentScope.containsKey(name)) {
             throw error(curr, "Semantic error: Variable '" + name + "' is already defined in this scope.");
         }
@@ -86,7 +86,7 @@ public class Parser {
 
     // Define a function in the current scope.
     private void defineFunction(String name, int paramCount) {
-        HashMap<String, Symbol> currentScope = scopes.get(scopes.size() - 1);
+        HashMap<String, Symbol> currentScope = scopes.getLast();
         if (currentScope.containsKey(name)) {
             throw error(curr, "Semantic error: Function '" + name + "' is already defined in this scope.");
         }
@@ -95,7 +95,7 @@ public class Parser {
 
     // Define a class in the current scope.
     private void defineClass(String name) {
-        HashMap<String, Symbol> currentScope = scopes.get(scopes.size() - 1);
+        HashMap<String, Symbol> currentScope = scopes.getLast();
         if (currentScope.containsKey(name)) {
             throw error(curr, "Semantic error: Class '" + name + "' is already defined in this scope.");
         }
@@ -423,7 +423,7 @@ public class Parser {
         advance(); // consume CLASS token
         expect(TokenType.IDENTIFIER, "Expected class name");
         Token className = tokens.get(pos - 1);
-        if (scopes.get(scopes.size() - 1).containsKey(className.value)) {
+        if (scopes.getLast().containsKey(className.value)) {
             throw error(curr, "Semantic error: Class '" + className.value + "' is already defined in this scope.");
         }
         defineClass(className.value);

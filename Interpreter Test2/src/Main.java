@@ -16,10 +16,9 @@ import java.io.PrintStream;
 import java.util.List;
 
 public class Main extends JFrame {
-    private JTextArea inputArea;
+    private final JTextArea inputArea;
     public static JTextArea consoleArea;
-    private JButton runButton, clearButton, stopButton;
-    private Color panelDark = new Color(35, 35, 45);
+    private final JButton runButton, clearButton, stopButton;
 
     // For interactive input handling.
     public static final Object inputLock = new Object();
@@ -397,17 +396,17 @@ public class Main extends JFrame {
                 // Tokenization.
                 Lexer lexer = new Lexer(code);
                 List<Token> tokens = lexer.tokenize();
-                System.out.println("Tokens:");
-                for (Token token : tokens) {
-                    System.out.println(token);
-                }
+//                System.out.println("Tokens:");
+//                for (Token token : tokens) {
+//                    System.out.println(token);
+//                }
 
                 // Parsing.
-                System.out.println("\nParsing process:");
+//                System.out.println("\nParsing process:");
                 Parser parser = new Parser(tokens);
                 ASTNode ast = parser.parse();
-                System.out.println("\nFinal Parsed AST:");
-                System.out.println(printAST(ast, 0));
+//                System.out.println("\nFinal Parsed AST:");
+//                System.out.println(printAST(ast, 0));
 
                 // Create a fresh interpreter instance for this run.
                 Interpreter interpreter = new Interpreter();

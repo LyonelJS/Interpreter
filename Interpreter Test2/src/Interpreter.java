@@ -558,7 +558,7 @@ public class Interpreter {
                 if (node.arguments.size() != 1) {
                     throw runtimeError(node, "append() expects one argument.");
                 }
-                Object arg = evaluate(node.arguments.get(0));
+                Object arg = evaluate(node.arguments.getFirst());
                 list.add(arg);
                 return null;
             } else if (methodName.equals("pop")) {
@@ -568,13 +568,13 @@ public class Interpreter {
                 if (list.isEmpty()) {
                     throw runtimeError(node, "pop() called on an empty list.");
                 }
-                return list.remove(list.size() - 1);
+                return list.removeLast();
             } else if (methodName.equals("remove")) {
                 // remove(item): removes the first occurrence of item.
                 if (node.arguments.size() != 1) {
                     throw runtimeError(node, "remove() expects one argument.");
                 }
-                Object arg = evaluate(node.arguments.get(0));
+                Object arg = evaluate(node.arguments.getFirst());
                 boolean removed = list.remove(arg); // removes first occurrence if found.
                 if (!removed) {
                     throw runtimeError(node, "remove() did not find the element to remove: " + arg);
