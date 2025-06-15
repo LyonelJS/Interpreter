@@ -7,8 +7,7 @@ public class Parser {
     private int pos;
     private Token curr;
 
-    // Symbol table support: a stack of scopes.
-    // Each scope is a map from variable, function, or class names to Symbols.
+    // Keep track of the scope
     private final List<HashMap<String, Symbol>> scopes = new ArrayList<>();
 
     // A symbol can be a variable, a function, or a class.
@@ -24,13 +23,14 @@ public class Parser {
         }
     }
 
-    // Added CLASS type.
+    // Symbol Types
     private enum SymbolType {
         VARIABLE,
         FUNCTION,
         CLASS
     }
 
+    // Parser Constructor, takes the list of tokens from lexer
     public Parser(List<Token> tokens) {
         this.tokens = tokens;
         this.pos = 0;
@@ -41,24 +41,25 @@ public class Parser {
         defineBuiltInFunctions();
     }
 
-    // Add built-in functions (like input and range) to the global symbol table.
+    // Define Built-in functions (input, int, float, and range) in the global symbol table.
     private void defineBuiltInFunctions() {
-        // "input" is defined as a built-in function expecting 1 parameter.
+        // Define "input" as a built-in function expecting 1 parameter.
         scopes.getLast().put("input", new Symbol("input", SymbolType.FUNCTION, 1));
-        // "range" is defined as a built-in function expecting 2 parameters.
+        // Define "range" as a built-in function expecting 2 parameters.
         scopes.getLast().put("range", new Symbol("range", SymbolType.FUNCTION, 2));
-        // Add more built-in functions as needed.
+        // Define "int"
         scopes.getLast().put("int", new Symbol("int", SymbolType.FUNCTION, 1));
+        // Define "float"
         scopes.getLast().put("float", new Symbol("float", SymbolType.FUNCTION, 1));
 
     }
 
-    // Push a new scope.
+    // Method to push a new scope.
     private void enterScope() {
         scopes.add(new HashMap<>());
     }
 
-    // Pop the current scope.
+    // Method to pop the current scope.
     private void exitScope() {
         scopes.removeLast();
     }
@@ -72,10 +73,11 @@ public class Parser {
         }
         return null;
     }
+    // Method to give error and gives the line
     private RuntimeException error(Token token, String message) {
         return new RuntimeException("Error at line " + token.line + ": " + message);
     }
-    // Define a variable in the current scope.
+    // Method to define a variable in the current scope.
     private void defineVariable(String name) {
         HashMap<String, Symbol> currentScope = scopes.getLast();
         if (currentScope.containsKey(name)) {
@@ -84,7 +86,7 @@ public class Parser {
         currentScope.put(name, new Symbol(name, SymbolType.VARIABLE, 0));
     }
 
-    // Define a function in the current scope.
+    // Method to define a function in the current scope.
     private void defineFunction(String name, int paramCount) {
         HashMap<String, Symbol> currentScope = scopes.getLast();
         if (currentScope.containsKey(name)) {
@@ -93,7 +95,7 @@ public class Parser {
         currentScope.put(name, new Symbol(name, SymbolType.FUNCTION, paramCount));
     }
 
-    // Define a class in the current scope.
+    // Method to define a class in the current scope.
     private void defineClass(String name) {
         HashMap<String, Symbol> currentScope = scopes.getLast();
         if (currentScope.containsKey(name)) {
@@ -102,6 +104,7 @@ public class Parser {
         currentScope.put(name, new Symbol(name, SymbolType.CLASS, 0));
     }
 
+    // Goes to the next token in the list
     private void advance() {
         pos++;
         if (pos < tokens.size()) {
@@ -109,6 +112,7 @@ public class Parser {
         }
     }
 
+    // Checks the current token type
     private boolean match(TokenType type) {
         if (curr.type == type) {
             advance();
@@ -117,6 +121,7 @@ public class Parser {
         return false;
     }
 
+    // Method to say what is expected after a certain token
     private void expect(TokenType type, String errorMessage) {
         if (curr.type != type) {
             throw error(curr, errorMessage + " Found: " + curr.value + "At line: " + curr.line);
@@ -131,7 +136,7 @@ public class Parser {
         }
     }
 
-    // Entry point: returns a BlockNode containing all top-level statements.
+    // Entry point of the parsing process
     public ASTNode parse() {
         skipNewlines();
         List<ASTNode> statements = new ArrayList<>();
@@ -152,7 +157,7 @@ public class Parser {
         return new ReturnNode(expr);
     }
 
-    // statement -> printStmt | ifStmt | whileStmt | forStmt | funcDef | classDef | returnStmt | assignment | expression
+    // Parses statements which are -> printStmt | ifStmt | whileStmt | forStmt | funcDef | classDef | returnStmt | assignment | expression
     private ASTNode statement() {
         if (curr.type == TokenType.PRINT) {
             return printStatement();
@@ -169,7 +174,7 @@ public class Parser {
         } else if (curr.type == TokenType.RETURN) {
             return returnStatement();
         } else {
-            // Parse an expression as a candidate for assignment.
+            // Parse an arithmetical expression if none of the above token types are met
             ASTNode expr = expression();
             // Check for assignment or compound assignment operators.
             if (curr.type == TokenType.EQUALS ||
@@ -248,38 +253,44 @@ public class Parser {
     // Parse an if-statement.
     private ASTNode ifStatement() {
         // Expect and consume IF.
-        expect(TokenType.IF, "Expected 'if'"); // Now we require an IF token here.
-        ASTNode condition = expression();
+        expect(TokenType.IF, "Expected 'if'");
 
+        // The if condition is the expression beside the 'if'
+        ASTNode condition = expression();
+        // If there is a token 'in' create a list expression
         if (curr.type == TokenType.IN) {
-            Token inToken = curr; // Capture the 'in' token.
+            Token inToken = curr; // Save the 'in' token.
             advance(); // Consume the 'in' token.
             // Parse the expression representing the list.
             ASTNode listExpression = expression();
-            // Create a binary operation (or membership test) node.
+            // Create a binary operation node.
             condition = new BinaryOpNode(condition, inToken, listExpression);
         }
-
+        // Newline and indent for the syntax and enter scope
         expect(TokenType.NEWLINE, "Expected newline after if condition");
         expect(TokenType.INDENT, "Expected indent after if condition");
         enterScope();
         List<ASTNode> thenStatements = new ArrayList<>();
         skipNewlines();
+        // Keeps adding the then statements to the parse as long as it is not dedent yet
         while (curr.type != TokenType.DEDENT && curr.type != TokenType.EOF) {
             thenStatements.add(statement());
             skipNewlines();
         }
+        // When dedent, exit the scope and return the then statements
         expect(TokenType.DEDENT, "Expected dedent after if block");
         exitScope();
         ASTNode thenBlock = new BlockNode(thenStatements);
         ASTNode elseBlock = null;
+        // If the next token is else if or else, parse the else chain
         if (curr.type == TokenType.ELSEIF || curr.type == TokenType.ELSE) {
             elseBlock = parseElseChain();
         }
+        // After everything is done, return the new parsed If Node
         return new IfNode(condition, thenBlock, elseBlock);
     }
 
-    // Helper method to parse the "else if"/"else" chain.
+    // Helper method to parse the "else if"/"else" chain (works the same way as the if statement).
     private ASTNode parseElseChain() {
         if (curr.type == TokenType.ELSEIF) {
             advance(); // consume ELSEIF token (which represents "else if")
@@ -323,29 +334,32 @@ public class Parser {
     // Parse a while-statement.
     private ASTNode whileStatement() {
         advance(); // consume WHILE token
-        ASTNode condition = expression();
+        ASTNode condition = expression(); // The condition is the expression besides the token 'while'
+        // Enter scope when newline and indent
         expect(TokenType.NEWLINE, "Expected newline after while condition");
         expect(TokenType.INDENT, "Expected indent after while condition");
         enterScope();
+        // Create the list for the body statements of the while loop
         List<ASTNode> bodyStatements = new ArrayList<>();
         skipNewlines();
+        // Keep adding to the body statement list if it has not found dedent token
         while (curr.type != TokenType.DEDENT && curr.type != TokenType.EOF) {
             bodyStatements.add(statement());
             skipNewlines();
         }
+        // Exit scope once dedent is found and return the While Node
         expect(TokenType.DEDENT, "Expected dedent after while block");
         exitScope();
         return new WhileNode(condition, new BlockNode(bodyStatements));
     }
 
     // Parse a for-statement.
-    // Grammar: forStmt -> FOR IDENTIFIER IN expression NEWLINE INDENT statement* DEDENT
     private ASTNode forStatement() {
         advance(); // consume FOR token
         expect(TokenType.IDENTIFIER, "Expected loop variable in for statement");
-        Token loopVar = tokens.get(pos - 1);
+        Token loopVar = tokens.get(pos - 1); // Variable of the loop
+        // For-each loop: for i in x
         if (match(TokenType.IN)) {
-            // For-each loop: for i in x
             ASTNode listExpr = expression();
             expect(TokenType.NEWLINE, "Expected newline after for header");
             expect(TokenType.INDENT, "Expected indent after for header");
@@ -432,6 +446,7 @@ public class Parser {
         enterScope();
         List<ASTNode> members = new ArrayList<>();
         skipNewlines();
+        // Keep adding class members like method and attributes while dedent is not found
         while (curr.type != TokenType.DEDENT && curr.type != TokenType.EOF) {
             members.add(classMember());
             skipNewlines();
@@ -441,11 +456,11 @@ public class Parser {
         return new ClassDefinitionNode(className, members);
     }
 
-    // Parse a class member: either a method (DEF) or an attribute assignment.
+    // Parse a class member either a method or an attribute assignment.
     private ASTNode classMember() {
-        if (curr.type == TokenType.DEF) {
+        if (curr.type == TokenType.DEF) { // Methods
             return functionDefinition();
-        } else if (curr.type == TokenType.IDENTIFIER) {
+        } else if (curr.type == TokenType.IDENTIFIER) { // Attribute assignments
             Token temp = curr;
             int tempPos = pos;
             advance();
@@ -463,9 +478,9 @@ public class Parser {
         }
     }
 
-    // Parse object instantiation without using the keyword "new".
-    // Grammar: objectCreationWithoutNew -> IDENTIFIER LPAREN [ argumentList ] RPAREN
-    private ASTNode objectCreationWithoutNew(Token className) {
+    // Parse object instantiation without using the keyword
+    // Grammar of objectCreation -> IDENTIFIER LPAREN [ argumentList ] RPAREN
+    private ASTNode objectCreation(Token className) {
         expect(TokenType.LPAREN, "Expected '(' after class name in object instantiation");
         List<ASTNode> arguments = new ArrayList<>();
         if (curr.type != TokenType.RPAREN) {
@@ -497,12 +512,12 @@ public class Parser {
     }
 
     // === Expression Parsing ===
-    // We update the expression grammar to support boolean logic.
+    // All expressions must be checked with boolean logic
     private ASTNode expression() {
         return logicOr();
     }
 
-    // logicOr -> logicAnd ( OR logicAnd )*
+    // logicOr and logicAnd
     private ASTNode logicOr() {
         ASTNode node = logicAnd();
         while (curr.type == TokenType.OR) {
@@ -514,7 +529,7 @@ public class Parser {
         return node;
     }
 
-    // logicAnd -> equality ( AND equality )*
+    // logicAnd and equality
     private ASTNode logicAnd() {
         ASTNode node = equality();
         while (curr.type == TokenType.AND) {
@@ -526,7 +541,7 @@ public class Parser {
         return node;
     }
 
-    // equality -> comparison ( (EQUAL_EQUAL | NOTEQUAL) comparison )*
+    // equality and comparison
     private ASTNode equality() {
         ASTNode node = comparison();
         while (curr.type == TokenType.EQUAL_EQUAL || curr.type == TokenType.NOTEQUAL) {
@@ -538,7 +553,7 @@ public class Parser {
         return node;
     }
 
-    // comparison -> term ( (GREATER | GREATER_EQUAL | LESS | LESS_EQUAL) term )*
+    // comparison and term (GREATER or GREATER_EQUAL or LESS or LESS_EQUAL)
     private ASTNode comparison() {
         ASTNode node = term();
         while (curr.type == TokenType.GREATER || curr.type == TokenType.GREATER_EQUAL ||
@@ -551,7 +566,7 @@ public class Parser {
         return node;
     }
 
-    // term -> factor ( (PLUS | MINUS) factor )*
+    // term and factor (PLUS and MINUS)
     private ASTNode term() {
         ASTNode node = factor();
         while (curr.type == TokenType.PLUS || curr.type == TokenType.MINUS) {
@@ -563,7 +578,7 @@ public class Parser {
         return node;
     }
 
-    // factor -> unary ( (MULTIPLY | DIVIDE) unary )*
+    // factor and unary (MULTIPLY | DIVIDE)
     private ASTNode factor() {
         ASTNode node = unary();
         while (curr.type == TokenType.MULTIPLY || curr.type == TokenType.DIVIDE || curr.type == TokenType.MODULO) {
@@ -616,7 +631,7 @@ public class Parser {
                     throw error(curr, "Semantic error: Identifier '" + token.value + "' is not defined");
                 }
                 if (sym.type == SymbolType.CLASS) {
-                    node = objectCreationWithoutNew(token);
+                    node = objectCreation(token);
                 } else {
                     node = functionCall(token);
                 }
@@ -654,7 +669,7 @@ public class Parser {
             throw error(curr, "Unexpected token: " + curr.value);
         }
 
-        // Now support chaining for field accesses, indexing, and slicing.
+        // Chaining for field accesses, indexing, and slicing.
         while (curr.type == TokenType.DOT || curr.type == TokenType.LBRACKET) {
             if (curr.type == TokenType.DOT) {
                 advance(); // consume '.'
