@@ -1,7 +1,7 @@
 import java.util.List;
 import javax.swing.SwingUtilities;
 
-public class InputFunction implements Callable {
+public class InputFunction implements Callable { // Class for input function
     @Override
     public Object call(Interpreter interpreter, List<Object> arguments) {
         final String prompt = (!arguments.isEmpty()) ? arguments.get(0).toString() : "";
@@ -27,7 +27,7 @@ public class InputFunction implements Callable {
         }
         String consoleText = Main.consoleArea.getText();
         String userInput = consoleText.substring(Main.inputStart).trim();
-        // Optionally, after capturing input, you can disable editing again.
+        // Disable editing again.
         SwingUtilities.invokeLater(() -> Main.consoleArea.setEditable(false));
         return userInput;
     }
