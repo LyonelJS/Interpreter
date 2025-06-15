@@ -55,12 +55,10 @@ class IdentifierNode extends ASTNode {
 
 class BlockNode extends ASTNode {
     List<ASTNode> statements;
-    // You can optionally pass a line number when constructing a BlockNode.
     public BlockNode(List<ASTNode> statements, int line) {
         this.statements = statements;
         this.line = line;
     }
-    // Or use a default constructor if line information isn’t available.
     public BlockNode(List<ASTNode> statements) {
         this(statements, -1);
     }
@@ -106,7 +104,6 @@ class IfNode extends ASTNode {
         this.condition = condition;
         this.thenBranch = thenBranch;
         this.elseBranch = elseBranch;
-        // You might choose a representative line—here we use the condition’s line.
         if (condition != null) {
             this.line = condition.line;
         }
@@ -117,7 +114,6 @@ class PrintNode extends ASTNode {
     public ASTNode expression;
     public PrintNode(ASTNode expression) {
         this.expression = expression;
-        // Use the expression's line if available.
         this.line = expression.line;
     }
 }
@@ -126,7 +122,6 @@ class ReturnNode extends ASTNode {
     public ASTNode expression;
     public ReturnNode(ASTNode expression) {
         this.expression = expression;
-        // Use the expression's line.
         this.line = expression.line;
     }
 }
@@ -179,9 +174,9 @@ class FieldAccessNode extends ASTNode {
 }
 
 class FieldAssignmentNode extends ASTNode {
-    public ASTNode target;   // e.g., the "self" expression
-    public Token fieldName;  // e.g., the token for "name"
-    public ASTNode value;    // The right-hand side expression
+    public ASTNode target;
+    public Token fieldName;
+    public ASTNode value;
     public FieldAssignmentNode(ASTNode target, Token fieldName, ASTNode value) {
         this.target = target;
         this.fieldName = fieldName;
@@ -204,7 +199,6 @@ class WhileNode extends ASTNode {
     public WhileNode(ASTNode condition, ASTNode body) {
         this.condition = condition;
         this.body = body;
-        // For example, use the condition's line.
         if (condition != null) {
             this.line = condition.line;
         }
@@ -245,7 +239,6 @@ class IndexNode extends ASTNode {
     public IndexNode(ASTNode base, ASTNode index) {
         this.base = base;
         this.index = index;
-        // Optionally derive the line from the base.
         if (base != null) {
             this.line = base.line;
         }
@@ -263,12 +256,11 @@ class IndexNode extends ASTNode {
 }
 
 class IndexAssignmentNode extends ASTNode {
-    private ASTNode target; // Typically an IndexNode or FieldAccessNode.
+    private ASTNode target;
     private ASTNode value;
     public IndexAssignmentNode(ASTNode target, ASTNode value) {
         this.target = target;
         this.value = value;
-        // Optionally, assign line from the target.
         if (target != null) {
             this.line = target.line;
         }
@@ -287,15 +279,14 @@ class IndexAssignmentNode extends ASTNode {
 
 class SliceNode extends ASTNode {
     private ASTNode target;
-    private ASTNode start; // may be null
-    private ASTNode end;   // may be null
-    private ASTNode step;  // may be null
+    private ASTNode start;
+    private ASTNode end;
+    private ASTNode step;
     public SliceNode(ASTNode target, ASTNode start, ASTNode end, ASTNode step) {
         this.target = target;
         this.start = start;
         this.end = end;
         this.step = step;
-        // Optionally, assign line from target.
         if (target != null) {
             this.line = target.line;
         }

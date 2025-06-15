@@ -19,13 +19,9 @@ public class ClassValue {
         fields.put(name, value);
     }
 
-    public boolean hasField(String name) {
-        return fields.containsKey(name);
-    }
-
     public Instance instantiate(List<Object> arguments, Interpreter interpreter) {
         Instance instance = new Instance(this);
-        // Require an initializer if constructor arguments are provided.
+        // Require an initializer to assign the class attributes
         Function initializer = methods.get("init");
         if (!arguments.isEmpty() && initializer == null) {
             throw new RuntimeException("Constructor arguments provided, but no initializer ('init') defined for class: " + name);

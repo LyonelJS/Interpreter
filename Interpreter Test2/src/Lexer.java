@@ -12,12 +12,12 @@ public class Lexer {
     Stack<Integer> indentStack = new Stack<>();
     int listNesting = 0; // Track list nesting
 
+    // Hashmap for all the keywords
     private static final Map<String, TokenType> KEYWORDS = new HashMap<>();
     static {
         KEYWORDS.put("print", TokenType.PRINT);
         KEYWORDS.put("if", TokenType.IF);
         KEYWORDS.put("else", TokenType.ELSE);
-        // "else if" will be handled separately.
         KEYWORDS.put("function", TokenType.DEF);
         KEYWORDS.put("class", TokenType.CLASS);
         KEYWORDS.put("and", TokenType.AND);
@@ -31,10 +31,10 @@ public class Lexer {
         KEYWORDS.put("while", TokenType.WHILE);
         KEYWORDS.put("in", TokenType.IN);
     }
-
+    // Lexer constructor which accepts the input string as argument
     public Lexer(String input) {
         this.input = input;
-        this.pos = 0;
+        this.pos = 0; // Pos starts with 0
         this.curr = input.length() > 0 ? input.charAt(pos) : '\0';
         indentStack.push(0); // Start with indent level 0
     }
@@ -58,7 +58,7 @@ public class Lexer {
     private void handleIndentation(List<Token> tokens) {
         int spaces = 0;
         while (curr == ' ' || curr == '\t') {
-            spaces += (curr == ' ') ? 1 : 4; // Assume tab = 4 spaces
+            spaces += (curr == ' ') ? 1 : 4;
             advance();
         }
         if (curr == '\n' || curr == '\0') {
@@ -75,7 +75,7 @@ public class Lexer {
             }
         }
     }
-
+    // Tokenizes the number in the input
     public Token number() {
         StringBuilder result = new StringBuilder();
         while (Character.isDigit(curr) || curr == '.') {
@@ -84,8 +84,9 @@ public class Lexer {
         }
         return new Token(TokenType.NUMBER, result.toString(), line);
     }
-
+    // tokenizes words or letters that is not in keywords from the input as identifiers
     public Token identifier() {
+        // Builds the words from letters (moves to new word when space is found)
         StringBuilder result = new StringBuilder();
         while (Character.isLetterOrDigit(curr)) {
             result.append(curr);
@@ -121,7 +122,7 @@ public class Lexer {
         TokenType type = KEYWORDS.getOrDefault(word, TokenType.IDENTIFIER);
         return new Token(type, word, line);
     }
-
+    // Tokenizes string by looking for ""
     public Token string() {
         StringBuilder result = new StringBuilder();
         advance(); // Skip opening quote
@@ -134,17 +135,17 @@ public class Lexer {
         }
         return new Token(TokenType.STRING, result.toString(), line);
     }
-
+    // Tokenizes comma
     public Token comma() {
         advance();
         return new Token(TokenType.COMMA, ",", line);
     }
-
+    // Tokenizes dot
     public Token dot() {
         advance();
         return new Token(TokenType.DOT, ".", line);
     }
-
+    // Tokenizes operators
     public Token operator() {
         switch (curr) {
             case '+':
@@ -229,18 +230,19 @@ public class Lexer {
                 throw new RuntimeException("Error at line " + line + ": " + "Unexpected character: " + unknown);
         }
     }
-
+    // Checks the next character
     private char peek() {
         return pos + 1 < input.length() ? input.charAt(pos + 1) : '\0';
     }
 
+    // Start of the tokenization process
     public List<Token> tokenize() {
         List<Token> tokens = new ArrayList<>();
 
         // Process any leading newlines before any code.
         while (curr == '\n') {
             advance(); // This will increment the line counter.
-            // Always add a NEWLINE token for each newline.
+            // Add a NEWLINE token for each newline.
             tokens.add(new Token(TokenType.NEWLINE, "\\n", line));
         }
 
@@ -282,7 +284,7 @@ public class Lexer {
                 continue;
             }
             if (curr == '\n') {
-                advance(); // Consume the newline (and increment line via advance())
+                advance(); // Consume the newline
                 // If inside a list, ignore newlines completely.
                 if (listNesting > 0) {
                     continue;

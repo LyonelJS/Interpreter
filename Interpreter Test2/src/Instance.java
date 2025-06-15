@@ -12,7 +12,6 @@ public class Instance {
     }
 
     public Object get(String name) {
-        // Use containsLocally instead of containsKey.
         if (fields.containsLocally(name)) {
             return fields.get(name);
         }
@@ -30,7 +29,6 @@ public class Instance {
     }
 
     public boolean hasField(String name) {
-        // Use the correct Environment method.
         return fields.containsLocally(name);
     }
 

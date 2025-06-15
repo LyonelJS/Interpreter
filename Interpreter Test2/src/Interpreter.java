@@ -16,11 +16,11 @@ public class Interpreter {
         globals.define("float", new FloatFunction());
         environment = globals;
     }
-
+    // Helper function to show errors
     private RuntimeException runtimeError(ASTNode node, String message) {
         return new RuntimeException("Runtime error at line " + node.line + ": " + message);
     }
-
+    // Start of interpreting the ASTNodes from the parsing process, checks each ASTNode type
     public Object evaluate(ASTNode node) {
         if (node instanceof NumberNode) return evaluateNumber((NumberNode) node);
         if (node instanceof StringNode) return evaluateString((StringNode) node);
@@ -49,8 +49,8 @@ public class Interpreter {
         throw new RuntimeException("Unknown AST node type: " + node.getClass().getName());
     }
 
-    // Helper method: returns a formatted string for a value.
-    // For numbers, if the value is mathematically an integer, it omits the trailing .0.
+    // Helper method to return a formatted string for a value
+    // For numbers, if the value is mathematically an integer, it omits the trailing .0
     private String formatValue(Object value) {
         if (value instanceof Double) {
             double d = (Double) value;
@@ -73,7 +73,7 @@ public class Interpreter {
         }
         return String.valueOf(value);
     }
-
+    // Evaluate the tree for the List
     private Object evaluateList(ListNode node) {
         List<Object> list = new ArrayList<>();
         for (ASTNode element : node.getElements()) {
@@ -81,7 +81,7 @@ public class Interpreter {
         }
         return list;
     }
-
+    // Evaluate the indexing of lists
     private Object evaluateIndex(IndexNode node) {
         Object base = evaluate(node.getBase());
         Object index = evaluate(node.getIndex());
@@ -91,7 +91,7 @@ public class Interpreter {
         }
         List<?> list = (List<?>) base;
 
-        if (!(index instanceof Number)) { // Assuming numbers are represented as Double
+        if (!(index instanceof Number)) {
             throw runtimeError(node, "List index must be a number.");
         }
         int idx = ((Number) index).intValue();
@@ -101,7 +101,7 @@ public class Interpreter {
         }
         return list.get(idx);
     }
-
+    // Evaluate slicing of list
     private Object evaluateSlice(SliceNode node) {
         Object baseObj = evaluate(node.getTarget());
         if (!(baseObj instanceof List)) {
@@ -110,7 +110,7 @@ public class Interpreter {
         List<Object> list = (List<Object>) baseObj;
         int size = list.size();
 
-        // Evaluate start; if missing, default to 0.
+        // Evaluate start, if missing, default to start is 0.
         int start = 0;
         if (node.getStart() != null) {
             Object startVal = evaluate(node.getStart());
@@ -120,7 +120,7 @@ public class Interpreter {
             start = ((Number) startVal).intValue();
         }
 
-        // Evaluate end; if missing, default to size.
+        // Evaluate end, if missing, default to the list size.
         int end = size;
         if (node.getEnd() != null) {
             Object endVal = evaluate(node.getEnd());
@@ -130,7 +130,7 @@ public class Interpreter {
             end = ((Number) endVal).intValue();
         }
 
-        // Evaluate step; if missing, default to 1.
+        // Evaluate step, if missing, default step is 1.
         int step = 1;
         if (node.getStep() != null) {
             Object stepVal = evaluate(node.getStep());
@@ -143,7 +143,7 @@ public class Interpreter {
             }
         }
 
-        // Normalize negative indices.
+        // Evaluates negative indices.
         if (start < 0) start = size + start;
         if (end < 0) end = size + end;
 
@@ -169,7 +169,7 @@ public class Interpreter {
         ASTNode targetExpr = node.getTarget();
         if (targetExpr instanceof IndexNode) {
             IndexNode indexNode = (IndexNode) targetExpr;
-            // Evaluate the base expression (should yield a List).
+            // Evaluate the base expression
             Object base = evaluate(indexNode.getBase());
             if (!(base instanceof List)) {
                 throw runtimeError(node, "Index assignment target must be a list.");
@@ -205,7 +205,7 @@ public class Interpreter {
         }
     }
 
-    // Added evaluateFieldAssignment to handle explicit field assignment AST nodes.
+    // Handle explicit field assignment AST nodes.
     private Object evaluateFieldAssignment(FieldAssignmentNode node) {
         Object targetObj = evaluate(node.target);
         if (!(targetObj instanceof Instance)) {
@@ -217,14 +217,15 @@ public class Interpreter {
         return value;
     }
 
+    // Evaluates Number Nodes
     private Object evaluateNumber(NumberNode node) {
         double value = Double.parseDouble(node.token.value);
-        if (value == (int) value) { // No fractional part
+        if (value == (int) value) {
             return (int) value;
         }
         return value;
     }
-
+    // Evaluates Strings
     private Object evaluateString(StringNode node) {
         return node.token.value;
     }
@@ -233,9 +234,9 @@ public class Interpreter {
     private Object evaluateBoolean(BooleanNode node) {
         return Boolean.parseBoolean(node.token.value);
     }
-
+    // Evaluates identifiers (variables)
     private Object evaluateIdentifier(IdentifierNode node) {
-        // If we're inside a method (i.e. "this" exists), check instance attributes first.
+        // If inside a method, check instance attributes first.
         if (environment.exists("this")) {
             Object thisVal = environment.get("this", node.line);
             if (thisVal instanceof Instance) {
@@ -246,10 +247,10 @@ public class Interpreter {
                 }
             }
         }
-        // Otherwise, fall back to the normal environment lookup.
+        // Otherwise, go back to check the scope before in the environment lookup.
         return environment.get(node.identifier.value, node.line);
     }
-
+    // Evaluates equals
     private boolean isEqual(Object a, Object b) {
         if (a == null && b == null) return true;
         if (a == null || b == null) return false;
@@ -259,13 +260,13 @@ public class Interpreter {
         return a.equals(b);
     }
 
-
+    // Evaluates Binary Operations
     private Object evaluateBinaryOp(BinaryOpNode node) {
         Object left = evaluate(node.left);
         Object right = evaluate(node.right);
         String op = node.op.value;
 
-        // Equality operators (applicable to all types).
+        // Equality operators
         if (op.equals("==")) {
             return isEqual(left, right);
         }
@@ -282,7 +283,7 @@ public class Interpreter {
             return list.contains(left);
         }
 
-        // Logical operators: and, or.
+        // Logical operators and, or.
         if (op.equals("and")) {
             return isTruthy(left) && isTruthy(right);
         }
@@ -324,7 +325,7 @@ public class Interpreter {
         throw runtimeError(node, "Unsupported operands for operator '" + op + "': " +
                 left.getClass().getSimpleName() + " and " + right.getClass().getSimpleName());
     }
-
+    // Evaluates Unary Operations
     private Object evaluateUnaryOp(UnaryOpNode node) {
         Object operand = evaluate(node.operand);
         String op = node.op.value;
@@ -340,7 +341,7 @@ public class Interpreter {
                 throw runtimeError(node, "Unknown unary operator: " + op);
         }
     }
-
+    // Evaluates assignments (For example variable assignment or attribute assignments)
     private Object evaluateAssignment(AssignmentNode node) {
         Object value = evaluate(node.value);
         if (environment.containsLocally(node.identifier.value)) {
@@ -358,18 +359,18 @@ public class Interpreter {
         return value;
     }
 
-    // Updated evaluatePrint uses formatValue to avoid printing .0 for whole numbers.
+    // Evaluate prints
     private Object evaluatePrint(PrintNode node) {
         Object value = evaluate(node.expression);
         System.out.println(formatValue(value));
         return null;
     }
-
+    // Evaluates return (from function)
     private Object evaluateReturn(ReturnNode node) {
         Object value = evaluate(node.expression);
         throw new Return(value);
     }
-
+    // Evaluates block nodes
     private Object evaluateBlock(BlockNode node) {
         Object result = null;
         Environment previous = environment;
@@ -393,14 +394,13 @@ public class Interpreter {
         return result;
     }
 
-    // Updated evaluateIf to handle else-if by recursively evaluating the else branch.
+    // Handle else-if by recursively evaluating the else branch.
     private Object evaluateIf(IfNode node) {
         Object condition = evaluate(node.condition);
         if (isTruthy(condition)) {
             return evaluate(node.thenBranch);
         } else if (node.elseBranch != null) {
-            // The else branch might be an "else if" (represented as a nested IfNode)
-            // or a plain else. Either way, we simply evaluate it.
+            // The else branch might be an "else if" (represented as a nested IfNode) or a plain else
             return evaluate(node.elseBranch);
         }
         return null;
@@ -422,9 +422,9 @@ public class Interpreter {
         return result;
     }
 
-    // Evaluate a for loop (numeric variant).
+    // Evaluate a for loop (numeric variant: for i = 1,3)
     private Object evaluateFor(ForNode node) {
-        // Evaluate the start and end expressions.
+        // Evaluate the start and end expressions
         Object startObj = evaluate(node.start);
         Object endObj = evaluate(node.end);
         if (!(startObj instanceof Number) || !(endObj instanceof Number)) {
@@ -434,12 +434,12 @@ public class Interpreter {
         Number endVal = (Number) endObj;
         Object result = null;
 
-        // Ensure the loop variable is defined in the current environment.
+        // Ensure the loop variable is defined in the current environment
         if (!environment.containsLocally(node.loopVar.value)) {
             environment.define(node.loopVar.value, startVal);
         }
 
-        // Iterate from the start value to the end value (inclusive).
+        // Iterate from the start value to the end value
         for (int i = (int) startVal; i <= (int) endVal; i++) {
             environment.assign(node.loopVar.value, (double) i);
             result = evaluate(node.body);
@@ -447,8 +447,7 @@ public class Interpreter {
         return result;
     }
 
-    // Evaluate a for-each loop.
-    // Here, the iterable expression should evaluate to a List.
+    // Evaluate a for-each loop (for i in x)
     private Object evaluateForEach(ForEachNode node) {
         Object iterable = evaluate(node.getListExpr());
         if (!(iterable instanceof List)) {
@@ -474,15 +473,14 @@ public class Interpreter {
         }
         return result;
     }
-
+    // Evaluates function definitions
     private Object evaluateFunctionDefinition(FunctionDefinitionNode node) {
         Function function = new Function(node, environment);
         environment.define(node.name.value, function);
         return function;
     }
 
-    // Updated evaluateFunctionCall to support both user-defined functions (Function)
-    // and built-in functions (which implement Callable).
+    // Evaluates function calls
     private Object evaluateFunctionCall(FunctionCallNode node) {
         Object callee = environment.get(node.name.value);
         List<Object> arguments = new ArrayList<>();
@@ -507,7 +505,7 @@ public class Interpreter {
             throw runtimeError(node, "Attempted to call a non-function: " + node.name.value);
         }
     }
-
+    // Evaluates class definitions
     private Object evaluateClassDefinition(ClassDefinitionNode node) {
         ClassValue classValue = new ClassValue(node.name.value);
         for (ASTNode member : node.members) {
@@ -522,7 +520,7 @@ public class Interpreter {
         environment.define(node.name.value, classValue);
         return classValue;
     }
-
+    // Evaluates object creations
     private Object evaluateObjectCreation(ObjectCreationNode node) {
         Object classObj = environment.get(node.className.value);
         if (!(classObj instanceof ClassValue)) {
@@ -547,7 +545,7 @@ public class Interpreter {
         return classValue.instantiate(arguments, this);
     }
 
-
+    // Evaluate method calls
     private Object evaluateMethodCall(MethodCallNode node) {
         Object target = evaluate(node.target);
         // Check if the target is a list and the method is a built-in list method.
@@ -585,7 +583,7 @@ public class Interpreter {
                 if (!node.arguments.isEmpty()) {
                     throw runtimeError(node, "size() expects no arguments.");
                 }
-                return (double) list.size(); // Assuming numbers are represented as Double.
+                return (double) list.size();
             }
         }
         // Otherwise, handle it as a normal instance method call.
@@ -607,7 +605,7 @@ public class Interpreter {
             return r.value;
         }
     }
-
+    // Evaluate booleans
     private boolean isTruthy(Object value) {
         if (value == null) return false;
         if (value instanceof Boolean) return (Boolean) value;

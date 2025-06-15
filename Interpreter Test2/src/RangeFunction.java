@@ -8,7 +8,7 @@ public class RangeFunction implements Callable {
         int start, end, step;
 
         if (arguments.size() == 1) {
-            // range(n): start=0, end=n, step=1.
+            // if provided 1 arg, range(n): start=0, end=n, step=1.
             if (!(arguments.get(0) instanceof Number)) {
                 throw new RuntimeException("range() argument must be a number");
             }
@@ -16,7 +16,7 @@ public class RangeFunction implements Callable {
             end = ((Number) arguments.get(0)).intValue();
             step = 1;
         } else if (arguments.size() == 2) {
-            // range(start, end): step=1.
+            // if provided 2 arg, range(start, end): step=1.
             if (!(arguments.get(0) instanceof Number && arguments.get(1) instanceof Number)) {
                 throw new RuntimeException("range() arguments must be numbers");
             }
@@ -24,7 +24,7 @@ public class RangeFunction implements Callable {
             end = ((Number) arguments.get(1)).intValue();
             step = 1;
         } else if (arguments.size() == 3) {
-            // range(start, end, step)
+            // if provided 3 arg, range(start, end, step)
             if (!(arguments.get(0) instanceof Number && arguments.get(1) instanceof Number
                     && arguments.get(2) instanceof Number)) {
                 throw new RuntimeException("range() arguments must be numbers");
@@ -35,7 +35,7 @@ public class RangeFunction implements Callable {
             if (step == 0) {
                 throw new RuntimeException("range() step argument must not be zero");
             }
-        } else {
+        } else { // throw error
             throw new RuntimeException("range() expects 1, 2, or 3 arguments");
         }
 

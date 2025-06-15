@@ -26,7 +26,6 @@ public class Function {
         return null;
     }
 
-    // For method calls: bind "this"
     public Object call(Interpreter interpreter, List<Object> arguments, Instance instance) {
         Environment environment = new Environment(closure);
         environment.define("this", instance);

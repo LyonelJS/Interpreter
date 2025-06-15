@@ -1,13 +1,13 @@
 public class Token {
     TokenType type;
     String value;
-    int indentLevel;  // Stores the indent level (if applicable)
+    int indentLevel;
     int line;
 
     public Token(TokenType type, String value) {
         this.type = type;
         this.value = value;
-        this.indentLevel = -1; // Default value when not used
+        this.indentLevel = -1;
     }
 
     public Token(TokenType type, String value, int line) {
